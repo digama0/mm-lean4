@@ -59,22 +59,6 @@ namespace ByteSliceT
 
 @[inline] def getOp (self : ByteSliceT) (idx : Nat) : UInt8 := self.arr.get! (self.off + idx)
 
--- constructs `bs ++ bs'[..len]`, modifying the first slice.
-def appendSubslice : ByteSliceT → ByteSliceT → Nat → ByteSliceT
-| ⟨arr, off⟩, ⟨arr', off'⟩, len =>
-  ⟨arr'.copySlice off' arr arr.size len false, off⟩
-
-partial instance : ForIn m ByteSliceT UInt8 where
-  forIn bs b f :=
-    let ⟨arr, off⟩ := bs
-    let rec loop (i : Nat) (b) := do
-      if i < arr.size then
-        match ← f (arr.get! i) b with
-        | ForInStep.done b => pure b
-        | ForInStep.yield b => loop (i+1) b
-      else b
-    loop off b
-
 end ByteSliceT
 
 def ByteArray.toSliceT (arr : ByteArray) : ByteSliceT := ⟨arr, 0⟩
@@ -135,15 +119,6 @@ instance : ToString ByteSlice where
     let mut s := ""
     for c in bs do s := s.push c.toChar
     s
-
-instance : ToString ByteSliceT where
-  toString bs := do
-    let mut s := ""
-    for c in bs do s := s.push c.toChar
-    s
-
-instance : ToString ByteArray where
-  toString bs := toString bs.toSliceT
 
 namespace Metamath
 
@@ -302,10 +277,6 @@ deriving Inhabited
 
 namespace DB
 
-@[neverExtract]
-def trace (m : String) (s : DB) : DB :=
-dbgTrace m fun _ => s
-
 @[inline] def error (s : DB) : Bool := s.error?.isSome
 
 def mkError (s : DB) (pos : Pos) (msg : String) : DB :=
@@ -334,18 +305,18 @@ def isSym (db : DB) (tk : String) : Bool :=
   | some (Object.var _) => true
   | _ => false
 
-def withFrame (f : Frame → Frame) (db : DB) : DB :=
+@[inline] def withFrame (f : Frame → Frame) (db : DB) : DB :=
   { db with frame := f db.frame }
 
-def withDJ (f : Array DJ → Array DJ) (db : DB) : DB :=
+@[inline] def withDJ (f : Array DJ → Array DJ) (db : DB) : DB :=
   db.withFrame fun ⟨dj, hyps⟩ => ⟨f dj, hyps⟩
 
-def withHyps (f : Array String → Array String) (db : DB) : DB :=
+@[inline] def withHyps (f : Array String → Array String) (db : DB) : DB :=
   db.withFrame fun ⟨dj, hyps⟩ => ⟨dj, f hyps⟩
 
 def insert (db : DB) (pos : Pos) (l : String) (obj : String → Object) : DB :=
-  if let some o := db.find? l then do
-    let ok ← match o with
+  if let some o := db.find? l then
+    let ok : Bool := match o with
     | Object.var v => if let Object.var _ := obj l then true else false
     | _ => false
     if ok then db else db.mkError pos s!"duplicate symbol/assert {l}"
@@ -521,9 +492,6 @@ namespace ParserState
 
 @[inline] def withDB (f : DB → DB) (s : ParserState) : ParserState :=
   { s with db := f s.db }
-
-def trace (m : String) (s : ParserState) : ParserState :=
-  s.withDB (DB.trace m)
 
 def mkPos (s : ParserState) (pos : Nat) : Pos := ⟨s.line, pos - s.linepos⟩
 
@@ -769,9 +737,7 @@ partial def check (fname : String) : IO DB := do
       let s := s.feed base buf
       if s.db.error?.isSome then s.db
       else loop s (base + buf.size)
-  let mut s := Inhabited.default
-  s := {s with line := fname.length - fname.length}
-  loop s 0
+  loop Inhabited.default 0
 
 end Metamath
 
