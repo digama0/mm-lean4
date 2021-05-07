@@ -9,13 +9,43 @@ protected theorem sub_sub : ∀ (n m k : Nat), n - m - k = n - (m + k)
 | n, m, 0        => by rw [Nat.add_zero, Nat.sub_zero]
 | n, m, (succ k) => by rw [add_succ, sub_succ, sub_succ, Nat.sub_sub n m k]
 
+protected theorem add_sub_add_right : ∀ (n k m : Nat), (n + k) - (m + k) = n - m
+| n, 0,      m => by rw [Nat.add_zero, Nat.add_zero]
+| n, succ k, m => by rw [add_succ, add_succ, succ_sub_succ, Nat.add_sub_add_right n k m]
+
 protected theorem sub_add_cancel : {a b : Nat} → a ≤ b → b - a + a = b
 | 0, b, _ => rfl
-| a+1, b+1, h => congrArg Nat.succ $ show (b+1) - (a + 1) + a = b by
+| a+1, b+1, h => congrArg Nat.succ $ show (b + 1) - (a + 1) + a = b by
   rw [Nat.add_comm  a, ← Nat.sub_sub]
   exact Nat.sub_add_cancel h
 
+protected theorem lt_of_not_le {a b : Nat} (h : ¬ a ≤ b) : b < a :=
+  match Nat.ltOrGe b a with | Or.inl h' => h' | Or.inr h' => nomatch h h'
+
+protected theorem lt_add_of_pos_right {n k : Nat} (h : 0 < k) : n < n + k :=
+Nat.addLtAddLeft h n
+
+protected theorem lt_of_add_lt_add_right {a b c : Nat} (h : a + b < c + b) : a < c :=
+  Nat.lt_of_not_le fun h' => Nat.notLeOfGt h (Nat.addLeAddRight h' _)
+
+protected theorem sub_pos_of_lt {m n : Nat} (h : m < n) : 0 < n - m := by
+  apply Nat.lt_of_add_lt_add_right (b := m)
+  rw [Nat.zero_add, Nat.sub_add_cancel (Nat.leOfLt h)]; exact h
+
+protected theorem sub_lt_sub_left : ∀ {k m n : Nat} (H : k < m) (h : k < n), m - n < m - k
+| 0, m+1, n+1, _, _ => by rw [Nat.add_sub_add_right]; exact lt_succ_of_le (Nat.subLe _ _)
+| k+1, m+1, n+1, h1, h2 => by
+  rw [Nat.add_sub_add_right, Nat.add_sub_add_right]
+  exact Nat.sub_lt_sub_left h1 h2
+
 end Nat
+
+def UpNat (ub a i : Nat) := i < a ∧ i < ub
+
+theorem UpNat.next {ub i} (h : i < ub) : UpNat ub (i+1) i := ⟨Nat.ltSuccSelf _, h⟩
+
+theorem upNatWF (ub) : WellFounded (UpNat ub) :=
+  Subrelation.wf (h₂ := measureWf (ub - .)) @fun a i ⟨ia, iu⟩ => Nat.sub_lt_sub_left iu ia
 
 end forMathlib
 
@@ -29,6 +59,14 @@ theorem toChar_aux (n : Nat) (h : n < UInt8.size) : Nat.isValidChar (UInt32.ofNa
 
 def UInt8.toChar (n : UInt8) : Char := ⟨n.toUInt32, toChar_aux n.1 n.1.2⟩
 def Char.toUInt8 (n : Char) : UInt8 := n.1.toUInt8
+
+theorem Char.utf8Size_pos (c : Char) : 0 < c.utf8Size :=
+  let foo {c} {t e : UInt32} : [Decidable c] → 0 < t → 0 < e → 0 < ite c t e
+  | Decidable.isTrue _, h, _ => h
+  | Decidable.isFalse _, _, h => h
+  foo (by decide) $ foo (by decide) $ foo (by decide) (by decide)
+
+theorem String.csize_pos : (c : Char) → 0 < String.csize c := Char.utf8Size_pos
 
 namespace UInt8
 
@@ -75,17 +113,29 @@ def toArray : ByteSlice → ByteArray
 
 @[inline] def getOp (self : ByteSlice) (idx : Nat) : UInt8 := self.arr.get! (self.off + idx)
 
-partial instance : ForIn m ByteSlice UInt8 where
-  forIn bs b f :=
-    let ⟨arr, off, len⟩ := bs
-    let _end := off + len
-    let rec loop (i : Nat) (b) := do
-      if i < _end then
-        match ← f (arr.get! i) b with
-        | ForInStep.done b => pure b
-        | ForInStep.yield b => loop (i+1) b
-      else b
-    loop off b
+partial def forIn.loop.impl [Monad m] (f : UInt8 → β → m (ForInStep β))
+  (arr : ByteArray) (off _end : Nat) (i : Nat) (b : β) : m β :=
+  if i < _end then do
+    match ← f (arr.get! i) b with
+    | ForInStep.done b => pure b
+    | ForInStep.yield b => impl f arr off _end (i+1) b
+  else b
+
+set_option codegen false in
+@[implementedBy forIn.loop.impl]
+def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
+  (arr : ByteArray) (off _end : Nat) (i : Nat) (b : β) : m β := do
+(upNatWF _end).fix (x := i) (C := fun _ => ∀ b, m β) (b := b)
+  fun i IH b =>
+    if h : i < _end then do
+      let b ← f (arr.get! i) b
+      match b with
+      | ForInStep.done b => pure b
+      | ForInStep.yield b => IH (i+1) (UpNat.next h) b
+    else b
+
+instance : ForIn m ByteSlice UInt8 :=
+  ⟨fun ⟨arr, off, len⟩ b f => forIn.loop f arr off (off + len) off b⟩
 
 end ByteSlice
 
@@ -94,20 +144,41 @@ def ByteSliceT.toSlice : ByteSliceT → ByteSlice
 
 def ByteArray.toSlice (arr : ByteArray) : ByteSlice := ⟨arr, 0, arr.size⟩
 
-partial def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
-  let rec loop (i j : Nat) :=
-    if j < arr.size then
-      bs.arr.get! i == arr.get! j && loop (i+1) (j+1)
-    else true
-  bs.len == arr.size && loop bs.off 0
+partial def ByteSlice.eqArray.loop.impl (arr₁ arr₂ : ByteArray) (i j : Nat) : Bool :=
+  if j < arr₂.size then
+    arr₁.get! i == arr₂.get! j && impl arr₁ arr₂ (i+1) (j+1)
+  else true
 
-partial def String.toAscii (s : String) : ByteArray := do
-  let mut out := ByteArray.empty
-  let rec loop (out p) :=
-    if s.atEnd p then out else
+set_option codegen false in
+@[implementedBy ByteSlice.eqArray.loop.impl]
+def ByteSlice.eqArray.loop (arr₁ arr₂ : ByteArray) (i j : Nat) : Bool :=
+(upNatWF arr₂.size).fix (x := j) (C := fun _ => ∀ i, Bool) (i := i)
+  fun j IH i =>
+    if h : j < arr₂.size then
+      arr₁.get! i == arr₂.get! j && IH (j+1) (UpNat.next h) (i+1)
+    else true
+
+partial def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
+  bs.len == arr.size && ByteSlice.eqArray.loop bs.arr arr bs.off 0
+
+partial def String.toAscii.loop.impl (s : String) (out : ByteArray) (p : Pos) : ByteArray :=
+  if s.atEnd p then out else
+  let c := s.get p
+  impl s (out.push c.toUInt8) (s.next p)
+
+set_option codegen false in
+@[implementedBy String.toAscii.loop.impl]
+def String.toAscii.loop (s : String) (out : ByteArray) (p : Pos) : ByteArray :=
+(upNatWF (utf8ByteSize s)).fix (x := p) (C := fun _ => ∀ out, ByteArray) (out := out)
+  fun p IH i =>
+    if h : s.atEnd p then out else
     let c := s.get p
-    loop (out.push c.toUInt8) (s.next p)
-  loop ByteArray.empty 0
+    IH (s.next p) (out := out.push c.toUInt8)
+      ⟨Nat.lt_add_of_pos_right (String.csize_pos _),
+      Nat.lt_of_not_le (mt decideEqTrue h)⟩
+
+def String.toAscii (s : String) : ByteArray :=
+  String.toAscii.loop s ByteArray.empty 0
 
 def ByteSlice.toString (bs : ByteSlice) : String := do
   let mut s := ""
@@ -377,30 +448,50 @@ def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState 
   | some (Object.assert f fr _) => pr.pushHeap (HeapEl.assert l f fr)
   | _ => throw s!"statement {l} not found"
 
-partial def stepAssert (db : DB) (pr : ProofState) (f : Formula) (l : String) : Frame → Except String ProofState
+@[inline] def checkHypF (db : DB) (hyps : Array String) (stack : Array Formula)
+  (off : {off // off + hyps.size = stack.size})
+  (IH : HashMap String Formula → Except String (HashMap String Formula))
+  (i : Nat) (h : i < hyps.size)
+  (subst : HashMap String Formula) : Except String (HashMap String Formula) := do
+  let val := stack.get ⟨off.1 + i,
+    let thm {a b n} : i < a → n + a = b → n + i < b
+    | h, rfl => Nat.addLtAddLeft h _
+    thm h off.2⟩
+  if let some (Object.hyp ess f _) := db.find? (hyps.get ⟨i, h⟩) then
+    if f[0] == val[0] then
+      if ess then
+        if (← f.subst subst) == val then
+          IH subst
+        else throw "type error in substitution"
+      else
+        IH (subst.insert f[1].value val)
+    else throw s!"bad typecode in substitution {hyps[i]}: {f} / {val}"
+  else unreachable!
+
+partial def checkHyp.impl (db : DB) (hyps : Array String) (stack : Array Formula)
+  (off : {off // off + hyps.size = stack.size}) (i : Nat) (subst : HashMap String Formula) :
+  Except String (HashMap String Formula) := do
+  if h : i < hyps.size then
+    checkHypF db hyps stack off (impl db hyps stack off (i+1)) i h subst
+  else subst
+
+set_option codegen false in
+@[implementedBy checkHyp.impl]
+def checkHyp (db : DB) (hyps : Array String) (stack : Array Formula)
+  (off : {off // off + hyps.size = stack.size}) (i : Nat) (subst : HashMap String Formula) :
+  Except String (HashMap String Formula) :=
+(upNatWF hyps.size).fix (x := i) (C := fun _ => ∀ σ, Except String (HashMap String Formula)) (σ := subst)
+  fun i IH subst =>
+    if h : i < hyps.size then
+      checkHypF db hyps stack off (IH (i+1) (UpNat.next h)) i h subst
+    else subst
+
+def stepAssert (db : DB) (pr : ProofState) (f : Formula) (l : String) : Frame → Except String ProofState
 | ⟨dj, hyps⟩ => do
   if h : hyps.size ≤ pr.stack.size then
     let off : {off // off + hyps.size = pr.stack.size} :=
       ⟨pr.stack.size - hyps.size, Nat.sub_add_cancel h⟩
-    let rec checkHyp (subst : HashMap String Formula) (i : Nat) :
-      Except String (HashMap String Formula) := do
-      if h : i < hyps.size then
-        let val := pr.stack.get ⟨off.1 + i,
-          let thm {a b n} : i < a → n + a = b → n + i < b
-          | h, rfl => Nat.addLtAddLeft h _
-          thm h off.2⟩
-        if let some (Object.hyp ess f _) := db.find? (hyps.get ⟨i, h⟩) then
-          if f[0] == val[0] then
-            if ess then
-              if (← f.subst subst) == val then
-                checkHyp subst (i+1)
-              else throw "type error in substitution"
-            else
-              checkHyp (subst.insert f[1].value val) (i+1)
-          else throw s!"bad typecode in substitution {hyps[i]}: {f} / {val}"
-        else unreachable!
-      else subst
-    let subst ← checkHyp HashMap.empty 0
+    let subst ← checkHyp db hyps pr.stack off 0 HashMap.empty
     for (v1, v2) in dj do
       let e1 := subst.find! v1
       let e2 := subst.find! v2
@@ -544,18 +635,22 @@ def feedTokens (s : ParserState) (arr : Array Sym) : TokensParser → ParserStat
     let pr := s.db.mkProofState pos l arr
     pure { s with tokp := TokenParser.proof pr }
 
-partial def feedProof (s : ParserState) (tk : ByteSlice) (pr : ProofState) : ParserState :=
+def feedProof (s : ParserState) (tk : ByteSlice) (pr : ProofState) : ParserState :=
   withAt pr.label fun _ =>
     match go pr with
     | Except.ok pr => { s with tokp := TokenParser.proof pr }
     | Except.error msg => s.mkError pr.pos msg
 where
+  goNormal (pr : ProofState) :=
+    let (ok, tk) := toLabel tk
+    if ok then s.db.stepNormal pr tk
+    else throw s!"invalid label '{tk}'"
   go (pr : ProofState) : Except String ProofState := do
     match pr.ptp with
     | ProofTokenParser.start =>
       if tk.eqArray "(".toAscii then
         pure { pr with ptp := ProofTokenParser.preload }
-      else go { pr with ptp := ProofTokenParser.normal }
+      else goNormal { pr with ptp := ProofTokenParser.normal }
     | ProofTokenParser.preload =>
       if tk.eqArray ")".toAscii then
         pure { pr with ptp := ProofTokenParser.compressed 0 }
@@ -563,10 +658,7 @@ where
         let (ok, tk) := toLabel tk
         if ok then s.db.preload pr tk
         else throw s!"invalid label '{tk}'"
-    | ProofTokenParser.normal =>
-      let (ok, tk) := toLabel tk
-      if ok then s.db.stepNormal pr tk
-      else throw s!"invalid label '{tk}'"
+    | ProofTokenParser.normal => goNormal pr
     | ProofTokenParser.compressed chr =>
       let mut pr := pr
       let mut chr := chr
@@ -662,48 +754,66 @@ inductive OldToken
 | this (off : Nat)
 | old (base off : Nat) (arr : ByteArray)
 
-inductive RunState
-| ws : RunState
-| token : OldToken → RunState
+inductive FeedState
+| ws : FeedState
+| token : OldToken → FeedState
 
 def updateLine (s : ParserState) (i : Nat) (c : UInt8) : ParserState :=
 if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
 
-partial def run (s : ParserState) (base : Nat) (arr : ByteArray)
-  (i : Nat) (rs : RunState) : ParserState :=
-if i < arr.size then
+@[inline] def feedOne (base : Nat) (arr : ByteArray)
+  (IH : FeedState → ParserState → ParserState)
+  (i : Fin arr.size) (rs : FeedState) (s : ParserState) : ParserState :=
   let c := arr.get! i
   if isWhitespace c then
     match rs with
-    | RunState.ws =>
+    | FeedState.ws =>
       let s := s.updateLine (base + i) c
-      s.run base arr (i+1) RunState.ws
-    | RunState.token ot =>
+      IH FeedState.ws s
+    | FeedState.token ot =>
       let s := match ot with
       | OldToken.this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
       | OldToken.old base off arr' => s.feedToken (base + off)
         ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
       if s.db.error?.isSome then s else
       let s := s.updateLine (base + i) c
-      s.run base arr (i+1) RunState.ws
+      IH FeedState.ws s
   else
-    let rs := if let RunState.ws := rs then RunState.token (OldToken.this i) else rs
-    s.run base arr (i+1) rs
-else
+    let rs := if let FeedState.ws := rs then FeedState.token (OldToken.this i) else rs
+    IH rs s
+
+@[inline] def feedFinish (base : Nat) (arr : ByteArray)
+  (rs : FeedState) (s : ParserState) : ParserState :=
   { s with charp :=
     match rs with
-    | RunState.ws => CharParser.ws
-    | RunState.token ot =>
+    | FeedState.ws => CharParser.ws
+    | FeedState.token ot =>
       match ot with
       | OldToken.this off => CharParser.token base ⟨arr, off⟩
       | OldToken.old base off arr' => CharParser.token base ⟨arr' ++ arr, off⟩ }
 
-def feed (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
+partial def feed.impl (base : Nat) (arr : ByteArray)
+  (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
+if h : i < arr.size then
+  feedOne base arr (impl base arr (i+1)) ⟨i, h⟩ rs s
+else feedFinish base arr rs s
+
+set_option codegen false in
+@[implementedBy feed.impl]
+def feed (base : Nat) (arr : ByteArray)
+  (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
+(upNatWF arr.size).fix (x := i) (C := fun _ => ∀ rs s, _) (rs := rs) (s := s)
+  fun i IH rs s =>
+    if h : i < arr.size then
+      feedOne base arr (IH (i+1) (UpNat.next h)) ⟨i, h⟩ rs s
+    else feedFinish base arr rs s
+
+def feedAll (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
   match s.charp with
-  | CharParser.ws => s.run base arr 0 RunState.ws
+  | CharParser.ws => s.feed base arr 0 FeedState.ws
   | CharParser.token base' ⟨arr', off⟩ =>
     let s := { s with charp := arbitrary }
-    s.run base arr 0 (RunState.token (OldToken.old base' off arr'))
+    s.feed base arr 0 (FeedState.token (OldToken.old base' off arr'))
 
 def done (s : ParserState) (base : Nat) : DB := do
   let mut s := s
@@ -734,7 +844,7 @@ partial def check (fname : String) : IO DB := do
       s.done base
     else
       let buf ← h.read 1024
-      let s := s.feed base buf
+      let s := s.feedAll base buf
       if s.db.error?.isSome then s.db
       else loop s (base + buf.size)
   loop Inhabited.default 0
