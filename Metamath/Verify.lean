@@ -192,6 +192,7 @@ instance : ToString ByteSlice where
     s
 
 namespace Metamath
+namespace Verify
 
 open IO.FS (Handle)
 open Std (HashMap HashSet)
@@ -878,4 +879,5 @@ partial def check (fname : String) : IO DB := do
       else loop s (base + buf.size)
   loop Inhabited.default 0
 
+end Verify
 end Metamath
