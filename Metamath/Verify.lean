@@ -226,9 +226,9 @@ structure Pos := (line col : Nat)
 
 instance : ToString Pos := ⟨fun ⟨l, c⟩ => s!"{l}:{c}"⟩
 
-structure Error := (pos : Pos) (msg : String)
-
 def DJ := String × String
+instance : BEq DJ := instBEqProd
+
 structure Frame where
   dj : Array DJ
   hyps : Array String
@@ -239,6 +239,8 @@ def Frame.size : Frame → Nat × Nat
 
 def Frame.shrink : Frame → Nat × Nat → Frame
 | ⟨dj, hyps⟩, (x, y) => ⟨dj.shrink x, hyps.shrink y⟩
+
+instance : ToString Frame := ⟨fun fr => toString fr.hyps⟩
 
 inductive Sym
 | const (c : String)
@@ -294,12 +296,12 @@ inductive ProofTokenParser
 
 inductive HeapEl
 | fmla (f : Formula)
-| assert (l : String) (f : Formula) (fr : Frame)
+| assert (f : Formula) (fr : Frame)
 
 instance : ToString HeapEl where
   toString
   | HeapEl.fmla f => toString f
-  | HeapEl.assert l _ _ => s!"<{l}>"
+  | HeapEl.assert f fr => s!"{fr} |- {f}"
 
 structure ProofState where
   pos : Pos
@@ -339,11 +341,21 @@ def save (pr : ProofState) : Except String ProofState :=
 
 end ProofState
 
+inductive Error
+| error (pos : Pos) (msg : String)
+| ax (pos : Pos) (l : String) (f : Formula) (fr : Frame)
+| thm (pos : Pos) (l : String) (f : Formula) (fr : Frame)
+
+structure Interrupt :=
+  e : Error
+  idx : Nat
+
 structure DB where
   frame : Frame
   scopes : Array (Nat × Nat)
   objects : HashMap String Object
-  error? : Option Error
+  interrupt : Bool
+  error? : Option Interrupt
 deriving Inhabited
 
 namespace DB
@@ -351,7 +363,7 @@ namespace DB
 @[inline] def error (s : DB) : Bool := s.error?.isSome
 
 def mkError (s : DB) (pos : Pos) (msg : String) : DB :=
-  { s with error? := some ⟨pos, msg⟩ }
+  { s with error? := some ⟨Error.error pos msg, arbitrary⟩ }
 
 def pushScope (s : DB) : DB :=
   { s with scopes := s.scopes.push s.frame.size }
@@ -428,13 +440,14 @@ def trimFrame' (db : DB) (fmla : Formula) : Except String Frame :=
   if ok then pure fr
   else throw s!"out of order hypotheses in frame"
 
-def insertAssert (db : DB) (pos : Pos) (l : String) (fmla : Formula) : DB := do
+def insertAxiom (db : DB) (pos : Pos) (l : String) (fmla : Formula) : DB :=
   match db.trimFrame' fmla with
-  | Except.ok fr => db.insert pos l (Object.assert fmla fr)
+  | Except.ok fr =>
+    if db.interrupt then { db with error? := some ⟨Error.ax pos l fmla fr, arbitrary⟩ }
+    else db.insert pos l (Object.assert fmla fr)
   | Except.error msg => db.mkError pos msg
 
-def mkProofState (db : DB) (pos : Pos) (l : String) (fmla : Formula) : ProofState := do
-  let (ok, fr) := db.trimFrame fmla
+def mkProofState (db : DB) (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ProofState := do
   let mut heap := #[]
   for l in fr.hyps do
     if let some (Object.hyp _ f _) := db.find? l then
@@ -445,7 +458,7 @@ def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState 
   match db.find? l with
   | some (Object.hyp true _ _) => throw "$e found in paren list"
   | some (Object.hyp _ f _) => pr.pushHeap (HeapEl.fmla f)
-  | some (Object.assert f fr _) => pr.pushHeap (HeapEl.assert l f fr)
+  | some (Object.assert f fr _) => pr.pushHeap (HeapEl.assert f fr)
   | _ => throw s!"statement {l} not found"
 
 @[inline] def checkHypF (db : DB) (hyps : Array String) (stack : Array Formula)
@@ -486,19 +499,21 @@ def checkHyp (db : DB) (hyps : Array String) (stack : Array Formula)
       checkHypF db hyps stack off (IH (i+1) (UpNat.next h)) i h subst
     else subst
 
-def stepAssert (db : DB) (pr : ProofState) (f : Formula) (l : String) : Frame → Except String ProofState
+def stepAssert (db : DB) (pr : ProofState) (f : Formula) : Frame → Except String ProofState
 | ⟨dj, hyps⟩ => do
   if h : hyps.size ≤ pr.stack.size then
     let off : {off // off + hyps.size = pr.stack.size} :=
       ⟨pr.stack.size - hyps.size, Nat.sub_add_cancel h⟩
     let subst ← checkHyp db hyps pr.stack off 0 HashMap.empty
+    let disj s1 s2 := s1 != s2 &&
+      db.frame.dj.contains (if s1 < s2 then (s1, s2) else (s2, s1))
     for (v1, v2) in dj do
       let e1 := subst.find! v1
       let e2 := subst.find! v2
-      let intersect :=
-        e1.foldlVars (init := false) fun b s1 =>
-          e2.foldlVars b fun b s2 => b || s1 == s2
-      if intersect then throw "disjoint variable violation"
+      let disjoint :=
+        e1.foldlVars (init := true) fun b s1 =>
+          e2.foldlVars b fun b s2 => b && disj s1 s2
+      if !disjoint then throw "disjoint variable violation"
     let concl ← f.subst subst
     pure { pr with stack := (pr.stack.shrink off).push concl }
   else throw "stack underflow"
@@ -506,14 +521,14 @@ def stepAssert (db : DB) (pr : ProofState) (f : Formula) (l : String) : Frame �
 def stepNormal (db : DB) (pr : ProofState) (l : String) : Except String ProofState :=
   match db.find? l with
   | some (Object.hyp _ f _) => pr.push f
-  | some (Object.assert f fr _) => db.stepAssert pr f l fr
+  | some (Object.assert f fr _) => db.stepAssert pr f fr
   | _ => throw s!"statement {l} not found"
 
 def stepProof (db : DB) (pr : ProofState) (i : Nat) : Except String ProofState :=
   match pr.heap.get? i with
   | none => throw "proof backref index out of range"
   | some (HeapEl.fmla f) => pr.push f
-  | some (HeapEl.assert l f fr) => db.stepAssert pr f l fr
+  | some (HeapEl.assert f fr) => db.stepAssert pr f fr
 
 end DB
 
@@ -594,8 +609,8 @@ def mkErrorAt (s : ParserState) (pos : Pos) (l msg : String) : ParserState :=
 
 def withAt (l : String) (f : Unit → ParserState) : ParserState :=
   let s := f ()
-  if let some ⟨pos, msg⟩ := s.db.error? then
-    s.withDB fun db => { db with error? := some ⟨pos, s!"at {l}: {msg}"⟩ }
+  if let some ⟨Error.error pos msg, i⟩ := s.db.error? then
+    s.withDB fun db => { db with error? := some ⟨Error.error pos s!"at {l}: {msg}", i⟩ }
   else s
 
 def label (s : ParserState) (pos : Pos) (tk : ByteSlice) : ParserState :=
@@ -615,6 +630,15 @@ def sym (s : ParserState) (pos : Pos) (tk : ByteSlice) (f : String → Object) :
   else s.withMath pos tk fun s tk =>
     s.withDB fun db => db.insert pos tk f
 
+def resumeAxiom (s : ParserState)
+  (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ParserState :=
+  s.withDB fun db => db.insert pos l (Object.assert fmla fr)
+
+def resumeThm (s : ParserState)
+  (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ParserState :=
+  let pr := s.db.mkProofState pos l fmla fr
+  { s with tokp := TokenParser.proof pr }
+
 def feedTokens (s : ParserState) (arr : Array Sym) : TokensParser → ParserState
 | ⟨k, pos, l⟩ => withAt l fun _ => do
   unless arr.size > 0 && !arr[0].isVar do
@@ -629,11 +653,15 @@ def feedTokens (s : ParserState) (arr : Array Sym) : TokensParser → ParserStat
     let s := s.withDB fun db => db.insertHyp pos l true arr
     pure { s with tokp := TokenParser.start }
   | TokensKind.ax =>
-    let s := s.withDB fun db => db.insertAssert pos l arr
+    let s := s.withDB fun db => db.insertAxiom pos l arr
     pure { s with tokp := TokenParser.start }
   | TokensKind.thm =>
-    let pr := s.db.mkProofState pos l arr
-    pure { s with tokp := TokenParser.proof pr }
+    match s.db.trimFrame' arr with
+    | Except.ok fr =>
+      if s.db.interrupt then
+        s.withDB fun db => { db with error? := some ⟨Error.thm pos l arr fr, arbitrary⟩ }
+      else s.resumeThm pos l arr fr
+    | Except.error msg => s.mkError pos msg
 
 def feedProof (s : ParserState) (tk : ByteSlice) (pr : ProofState) : ParserState :=
   withAt pr.label fun _ =>
@@ -775,9 +803,10 @@ if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
       | OldToken.this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
       | OldToken.old base off arr' => s.feedToken (base + off)
         ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
-      if s.db.error?.isSome then s else
-      let s := s.updateLine (base + i) c
-      IH FeedState.ws s
+      let s : ParserState := s.updateLine (base + i) c
+      if let some ⟨e, _⟩ := s.db.error? then
+        { s with db := { s.db with error? := some ⟨e, i.1+1⟩ } }
+      else IH FeedState.ws s
   else
     let rs := if let FeedState.ws := rs then FeedState.token (OldToken.this i) else rs
     IH rs s

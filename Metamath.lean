@@ -7,6 +7,7 @@ def main (n : List String) : IO UInt32 := do
   | none =>
     IO.println s!"verified, {db.objects.size} objects"
     pure 0
-  | some ⟨pos, err⟩ =>
+  | some ⟨Error.error pos err, _⟩ =>
     IO.println s!"at {pos}: {err}"
     pure 1
+  | some _ => unreachable!
