@@ -1,0 +1,9 @@
+{"version": 4,
+ "packagesDir": "lake-packages",
+ "packages":
+ [{"git":
+   {"url": "https://github.com/leanprover/std4",
+    "subDir?": null,
+    "rev": "1c4ac57fde438d92320fdc154d1f8d6aa5cf68ae",
+    "name": "std",
+    "inputRev?": "main"}}]}
