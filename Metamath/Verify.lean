@@ -2,17 +2,6 @@ import Lean.Data.HashMap
 import Lean.Data.HashSet
 import Std.Data.Nat.Lemmas
 
-section forMathlib
-
-def UpNat (ub a i : Nat) := i < a ∧ i < ub
-
-theorem UpNat.next {ub i} (h : i < ub) : UpNat ub (i+1) i := ⟨Nat.lt_succ_self _, h⟩
-
-theorem upNatWF (ub) : WellFounded (UpNat ub) :=
-  Subrelation.wf (h₂ := (measure (ub - .)).wf) fun ⟨ia, iu⟩ => Nat.sub_lt_sub_left iu ia
-
-end forMathlib
-
 theorem Fin.val_eq_of_lt : a < n.succ → (@Fin.ofNat n a).val = a := Nat.mod_eq_of_lt
 theorem UInt32.val_eq_of_lt : a < UInt32.size → (UInt32.ofNat a).val = a := Fin.val_eq_of_lt
 
@@ -79,25 +68,14 @@ def toArray : ByteSlice → ByteArray
 instance : GetElem ByteSlice Nat UInt8 fun _ _ => True where
   getElem self idx _ := self.arr.get! (self.off + idx)
 
-partial def forIn.loop.impl [Monad m] (f : UInt8 → β → m (ForInStep β))
-  (arr : ByteArray) (off _end : Nat) (i : Nat) (b : β) : m β :=
-  if i < _end then do
+def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
+  (arr : ByteArray) (off stop : Nat) (i : Nat) (b : β) : m β := do
+  if i < stop then
     match ← f (arr.get! i) b with
     | ForInStep.done b => pure b
-    | ForInStep.yield b => impl f arr off _end (i+1) b
+    | ForInStep.yield b => loop f arr off stop (i+1) b
   else pure b
-
-@[implemented_by forIn.loop.impl]
-noncomputable def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
-  (arr : ByteArray) (off _end : Nat) (i : Nat) (b : β) : m β := do
-(upNatWF _end).fix (x := i) (C := fun _ => ∀ _b, m β) (_b := b)
-  fun i IH b =>
-    if h : i < _end then do
-      let b ← f (arr.get! i) b
-      match b with
-      | ForInStep.done b => pure b
-      | ForInStep.yield b => IH (i+1) (UpNat.next h) b
-    else pure b
+termination_by _ => stop - i
 
 instance : ForIn m ByteSlice UInt8 :=
   ⟨fun ⟨arr, off, len⟩ b f => forIn.loop f arr off (off + len) off b⟩
@@ -109,40 +87,22 @@ def ByteSliceT.toSlice : ByteSliceT → ByteSlice
 
 def ByteArray.toSlice (arr : ByteArray) : ByteSlice := ⟨arr, 0, arr.size⟩
 
-partial def ByteSlice.eqArray.loop.impl (arr₁ arr₂ : ByteArray) (i j : Nat) : Bool :=
-  if j < arr₂.size then
-    arr₁.get! i == arr₂.get! j && impl arr₁ arr₂ (i+1) (j+1)
-  else true
-
-@[implemented_by ByteSlice.eqArray.loop.impl]
-noncomputable def ByteSlice.eqArray.loop (arr₁ arr₂ : ByteArray) (i j : Nat) : Bool :=
-(upNatWF arr₂.size).fix (x := j) (C := fun _ => ∀ _i, Bool) (_i := i)
-  fun j IH i =>
-    if h : j < arr₂.size then
-      arr₁.get! i == arr₂.get! j && IH (j+1) (UpNat.next h) (i+1)
+def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
+  let rec loop (arr₁ : ByteArray) (i j : Nat) : Bool :=
+    if j < arr.size then
+      arr₁.get! i == arr.get! j && loop arr₁ (i+1) (j+1)
     else true
-
-partial def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
-  bs.len == arr.size && ByteSlice.eqArray.loop bs.arr arr bs.off 0
-
-partial def String.toAscii.loop.impl (s : String) (out : ByteArray) (p : Pos) : ByteArray :=
-  if s.atEnd p then out else
-  let c := s.get p
-  impl s (out.push c.toUInt8) (s.next p)
-
-@[implemented_by String.toAscii.loop.impl]
-noncomputable def String.toAscii.loop (s : String) (out : ByteArray) (p : Pos) : ByteArray :=
-(upNatWF (utf8ByteSize s)).fix (x := p.1) (C := fun _ => ∀ _out, ByteArray) (_out := out)
-  fun p IH _ =>
-    if h : s.atEnd ⟨p⟩ then out else
-    let c := s.get ⟨p⟩
-    IH (s.next ⟨p⟩).1
-      ⟨Nat.lt_add_of_pos_right (String.csize_pos _),
-      Nat.lt_of_not_le (mt decide_eq_true h)⟩
-      (out.push c.toUInt8)
+  bs.len == arr.size && loop bs.arr bs.off 0
+termination_by loop => arr.size - j
 
 def String.toAscii (s : String) : ByteArray :=
-  String.toAscii.loop s ByteArray.empty 0
+  let rec loop (out : ByteArray) (p : Pos) : ByteArray :=
+    if h : s.atEnd p then out else
+      let c := s.get p
+      have := Nat.sub_lt_sub_left (Nat.gt_of_not_le (mt decide_eq_true h)) (lt_next s _)
+      loop (out.push c.toUInt8) (s.next p)
+  loop ByteArray.empty 0
+termination_by loop => s.endPos.1 - p.1
 
 def ByteSlice.toString (bs : ByteSlice) : String := Id.run do
   let mut s := ""
@@ -447,23 +407,27 @@ def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState 
     else throw s!"bad typecode in substitution {hyps[i]}: {f} / {val}"
   else unreachable!
 
-partial def checkHyp.impl (db : DB) (hyps : Array String) (stack : Array Formula)
-  (off : {off // off + hyps.size = stack.size}) (i : Nat) (subst : HashMap String Formula) :
+variable (db : DB) (hyps : Array String) (stack : Array Formula)
+  (off : {off // off + hyps.size = stack.size}) in
+def checkHyp (i : Nat) (subst : HashMap String Formula) :
   Except String (HashMap String Formula) := do
   if h : i < hyps.size then
-    checkHypF db hyps stack off (impl db hyps stack off (i+1)) i h subst
+    let val := stack.get ⟨off.1 + i,
+      let thm {a b n} : i < a → n + a = b → n + i < b
+      | h, rfl => Nat.add_lt_add_left h _
+      thm h off.2⟩
+    if let some (Object.hyp ess f _) := db.find? (hyps.get ⟨i, h⟩) then
+      if f[0]! == val[0]! then
+        if ess then
+          if (← f.subst subst) == val then
+            checkHyp (i+1) subst
+          else throw "type error in substitution"
+        else
+          checkHyp (i+1) (subst.insert f[1]!.value val)
+      else throw s!"bad typecode in substitution {hyps[i]}: {f} / {val}"
+    else unreachable!
   else pure subst
-
-@[implemented_by checkHyp.impl]
-noncomputable def checkHyp (db : DB) (hyps : Array String) (stack : Array Formula)
-  (off : {off // off + hyps.size = stack.size}) (i : Nat) (subst : HashMap String Formula) :
-  Except String (HashMap String Formula) :=
-(upNatWF hyps.size).fix (x := i)
-  (C := fun _ => ∀ _σ, Except String (HashMap String Formula)) (_σ := subst)
-  fun i IH subst =>
-    if h : i < hyps.size then
-      checkHypF db hyps stack off (IH (i+1) (UpNat.next h)) i h subst
-    else pure subst
+termination_by _ => hyps.size - i
 
 def stepAssert (db : DB) (pr : ProofState) (f : Formula) : Frame → Except String ProofState
 | ⟨dj, hyps⟩ => do
@@ -755,53 +719,36 @@ inductive FeedState
 def updateLine (s : ParserState) (i : Nat) (c : UInt8) : ParserState :=
 if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
 
-@[inline] def feedOne (base : Nat) (arr : ByteArray)
-  (IH : FeedState → ParserState → ParserState)
-  (i : Fin arr.size) (rs : FeedState) (s : ParserState) : ParserState :=
-  let c := arr.get! i
-  if isWhitespace c then
-    match rs with
-    | FeedState.ws =>
-      let s := s.updateLine (base + i) c
-      IH FeedState.ws s
-    | FeedState.token ot =>
-      let s := match ot with
-      | OldToken.this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
-      | OldToken.old base off arr' => s.feedToken (base + off)
-        ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
-      let s : ParserState := s.updateLine (base + i) c
-      if let some ⟨e, _⟩ := s.db.error? then
-        { s with db := { s.db with error? := some ⟨e, i.1+1⟩ } }
-      else IH FeedState.ws s
+def feed (base : Nat) (arr : ByteArray)
+  (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
+  if h : i < arr.size then
+    let c := arr.get ⟨i, h⟩
+    if isWhitespace c then
+      match rs with
+      | FeedState.ws =>
+        let s := s.updateLine (base + i) c
+        feed base arr (i+1) FeedState.ws s
+      | FeedState.token ot =>
+        let s := match ot with
+        | OldToken.this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
+        | OldToken.old base off arr' => s.feedToken (base + off)
+          ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
+        let s : ParserState := s.updateLine (base + i) c
+        if let some ⟨e, _⟩ := s.db.error? then
+          { s with db := { s.db with error? := some ⟨e, i+1⟩ } }
+        else feed base arr (i+1) FeedState.ws s
+    else
+      let rs := if let FeedState.ws := rs then FeedState.token (OldToken.this i) else rs
+      feed base arr (i+1) rs s
   else
-    let rs := if let FeedState.ws := rs then FeedState.token (OldToken.this i) else rs
-    IH rs s
-
-@[inline] def feedFinish (base : Nat) (arr : ByteArray)
-  (rs : FeedState) (s : ParserState) : ParserState :=
-  { s with charp :=
-    match rs with
-    | FeedState.ws => CharParser.ws
-    | FeedState.token ot =>
-      match ot with
-      | OldToken.this off => CharParser.token base ⟨arr, off⟩
-      | OldToken.old base off arr' => CharParser.token base ⟨arr' ++ arr, off⟩ }
-
-partial def feed.impl (base : Nat) (arr : ByteArray)
-  (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
-if h : i < arr.size then
-  feedOne base arr (impl base arr (i+1)) ⟨i, h⟩ rs s
-else feedFinish base arr rs s
-
-set_option linter.unusedVariables false in
-@[implemented_by feed.impl]
-noncomputable def feed (base : Nat) (arr : ByteArray)
-  (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
-(upNatWF arr.size).fix (x := i) (C := fun _ => ∀ rs s, _) (rs := rs) (s := s)
-  fun i IH rs s =>
-    if h : i < arr.size then
-      feedOne base arr (IH (i+1) (UpNat.next h)) ⟨i, h⟩ rs s
-    else feedFinish base arr rs s
+    { s with charp :=
+      match rs with
+      | FeedState.ws => CharParser.ws
+      | FeedState.token ot =>
+        match ot with
+        | OldToken.this off => CharParser.token base ⟨arr, off⟩
+        | OldToken.old base off arr' => CharParser.token base ⟨arr' ++ arr, off⟩ }
+termination_by _ => arr.size - i
 
 def feedAll (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
   match s.charp with

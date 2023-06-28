@@ -1,6 +1,5 @@
 -- WIP stuff. see Metamath.Verify for the verifier
 
-import Lean
 import Std.Data.List.Lemmas
 import Metamath.Verify
 
