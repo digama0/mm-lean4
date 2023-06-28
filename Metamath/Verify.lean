@@ -1,24 +1,8 @@
 import Lean.Data.HashMap
 import Lean.Data.HashSet
+import Std.Data.Nat.Lemmas
 
 section forMathlib
-
-namespace Nat
-
-protected theorem lt_of_not_le {a b : Nat} (h : ¬ a ≤ b) : b < a :=
-  match Nat.lt_or_ge b a with | Or.inl h' => h' | Or.inr h' => nomatch h h'
-
-protected theorem lt_add_of_pos_right {n k : Nat} (h : 0 < k) : n < n + k :=
-Nat.add_lt_add_left h n
-
-protected theorem lt_of_add_lt_add_right {a b c : Nat} (h : a + b < c + b) : a < c :=
-  Nat.lt_of_not_le fun h' => Nat.not_le_of_gt h (Nat.add_le_add_right h' _)
-
-protected theorem sub_pos_of_lt {m n : Nat} (h : m < n) : 0 < n - m := by
-  apply Nat.lt_of_add_lt_add_right (b := m)
-  rw [Nat.zero_add, Nat.sub_add_cancel (Nat.le_of_lt h)]; exact h
-
-end Nat
 
 def UpNat (ub a i : Nat) := i < a ∧ i < ub
 
