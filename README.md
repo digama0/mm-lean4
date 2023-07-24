@@ -7,7 +7,7 @@ To compile the verifier, you need to acquire lean, and it is recommended to use 
 ```
 elan override set leanprover/lean4:nightly
 elan update leanprover/lean4:nightly
-leanmake bin
+lake build
 ```
 
 and it will produce the binary as `build/bin/Metamath`, which can be run as:
