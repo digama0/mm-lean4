@@ -1,14 +1,12 @@
 -- WIP stuff. see Metamath.Verify for the verifier
 
-import Std.Data.List.Lemmas
+import Lean.Elab.Term
 import Metamath.Verify
 
 namespace Metamath
 open Lean Elab
 open Verify in
 partial def foo : TermElabM Unit := do
-  let mut s : ParserState := Inhabited.default
-  s := s.withDB fun db => { db with interrupt := true }
   let h ← IO.FS.Handle.mk "/home/mario/Documents/metamath/mm/iset.mm" IO.FS.Mode.read
   let rec loop (s : ParserState) (base : Nat) : IO (Except ParserState DB) := do
     let buf ← h.read 1024
@@ -35,7 +33,7 @@ def CN := String
 instance : Inhabited CN := inferInstanceAs (Inhabited String)
 instance : DecidableEq CN := inferInstanceAs (DecidableEq String)
 
-structure VR := (type : CN) (i : Nat)
+structure VR where (type : CN) (i : Nat)
 deriving DecidableEq
 
 inductive Sym
@@ -80,7 +78,7 @@ theorem Expr.subst_id : (e : Expr) → Expr.subst VR.expr e = e
 theorem Expr.subst_append (σ) : (e₁ e₂ : Expr) → Expr.subst σ (e₁ ++ e₂) = e₁.subst σ ++ e₂.subst σ
 | [], _ => rfl
 | const c :: (e₁ : Expr), e₂ => by
-  simp only [subst, List.append_eq]; rw [subst_append ..]; rfl
+  rw [subst, List.cons_append, subst, subst_append ..]; rfl
 | var v :: e, e₂ => by
   rw [List.cons_append]; simp only [Expr.subst]; rw [List.append_assoc, subst_append ..]
 
@@ -121,7 +119,7 @@ a.all fun
   | const _ => true
   | var b => a != b
 
-structure DJ :=
+structure DJ where
   disj : VR → VR → Prop
   irr : ¬ disj x x
   symm : disj x y → disj y x
@@ -208,7 +206,7 @@ theorem DJ.untrim_trim (dj : DJ) (P : VR → Prop) : (dj.trim P).untrim P = dj.u
   DJ.le_antisymm (DJ.untrim.mono (DJ.trim_le_self _ _) (fun _ => id))
     fun _ _ ⟨h, H⟩ => ⟨h, fun ha hb => ⟨H ha hb, ha, hb⟩⟩
 
-structure Context :=
+structure Context where
   hyps : List Formula
   dj : DJ
 
@@ -219,7 +217,7 @@ instance : LE Context := ⟨fun Γ Γ' => (∀ a, a ∈ Γ.hyps → a ∈ Γ'.hy
 
 theorem Context.refl (Γ : Context) : Γ ≤ Γ := ⟨fun _ => id, DJ.refl _⟩
 
-structure Statement :=
+structure Statement where
   ctx : Context
   fmla : Formula
 
@@ -228,12 +226,12 @@ instance : LE Statement := ⟨fun s s' => s.ctx ≤ s'.ctx ∧ s.fmla = s'.fmla�
 theorem Statement.refl (s : Statement) : s ≤ s := ⟨Context.refl _, rfl⟩
 
 def Statement.vars (s : Statement) : List VR :=
-  (s.fmla :: s.ctx.hyps).bind fun e => e.2.vars
+  (s.fmla :: s.ctx.hyps).flatMap fun e => e.2.vars
 
 theorem Statement.vars.mono' {s₁ s₂ : Statement}
   (H : ∀ a, a ∈ s₁.ctx.hyps → a ∈ s₂.ctx.hyps) (H₂ : s₁.fmla = s₂.fmla)
   (v) : v ∈ s₁.vars → v ∈ s₂.vars := by
-  simp only [vars, List.mem_bind, List.mem_cons, H₂]
+  simp only [vars, List.mem_flatMap, List.mem_cons, H₂]
   exact fun ⟨a, b, c⟩ => ⟨a, b.imp_right (H _), c⟩
 
 theorem Statement.vars.mono {s₁ s₂ : Statement} (H : s₁ ≤ s₂) : ∀ v, v ∈ s₁.vars → v ∈ s₂.vars :=
@@ -363,7 +361,7 @@ def subst_of : List (VR × Expr) → VR → Expr
 | [], v => v
 | (a, e)::l, v => if a = v then e else subst_of l v
 
-class Subst (σ : VR → Expr) (e : Expr) (e' : outParam Expr) := (out : e.subst σ = e')
+class Subst (σ : VR → Expr) (e : Expr) (e' : outParam Expr) where (out : e.subst σ = e')
 
 instance [Subst σ e₁ e₁'] [Subst σ e₂ e₂'] : Subst σ (e₁ ++ e₂) (e₁' ++ e₂') :=
   ⟨by rw [Expr.subst_append, Subst.out, Subst.out]⟩
@@ -418,8 +416,8 @@ theorem HH_cons {axs Γ σ c f hyps}
 | _, .head _ => by rw [← @Subst.out σ f e] at h₁; exact h₁
 | _, .tail _ h => h₂ _ h
 
-class Typed (axs : outParam _) (c : outParam CN) (e : Expr) :=
-  type (Γ) : Provable axs Γ (c, e)
+class Typed (axs : outParam _) (c : outParam CN) (e : Expr) where
+  type Γ : Provable axs Γ (c, e)
 
 def Expr.ty (e) {axs c} [Typed axs c e] {Γ} : Provable axs Γ (c, e) := Typed.type Γ
 

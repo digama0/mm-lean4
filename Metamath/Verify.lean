@@ -1,25 +1,10 @@
-import Lean.Data.HashMap
-import Lean.Data.HashSet
-import Std.Data.Nat.Lemmas
+import Std.Data.HashMap
+import Std.Data.HashSet
 
-theorem Fin.val_eq_of_lt : a < n.succ → (@Fin.ofNat n a).val = a := Nat.mod_eq_of_lt
-theorem UInt32.val_eq_of_lt : a < UInt32.size → (UInt32.ofNat a).val = a := Fin.val_eq_of_lt
 
-theorem toChar_aux (n : Nat) (h : n < UInt8.size) : Nat.isValidChar (UInt32.ofNat n).1 := by
-  rw [UInt32.val_eq_of_lt]
-  exact Or.inl (Nat.lt_trans h (by decide))
-  exact Nat.lt_trans h (by decide)
-
-def UInt8.toChar (n : UInt8) : Char := ⟨n.toUInt32, toChar_aux n.1 n.1.2⟩
-def Char.toUInt8 (n : Char) : UInt8 := n.1.toUInt8
-
-theorem Char.utf8Size_pos (c : Char) : 0 < c.utf8Size :=
-  let foo {c} {t e : UInt32} : [Decidable c] → 0 < t → 0 < e → 0 < ite c t e
-  | Decidable.isTrue _, h, _ => h
-  | Decidable.isFalse _, _, h => h
-  foo (by decide) $ foo (by decide) $ foo (by decide) (by decide)
-
-theorem String.csize_pos : (c : Char) → 0 < String.csize c := Char.utf8Size_pos
+def UInt8.toChar (n : UInt8) : Char := ⟨n.toUInt32, by
+  have := n.toFin.2
+  simp [size, UInt32.isValidChar, Nat.isValidChar] at *; omega⟩
 
 namespace UInt8
 
@@ -75,7 +60,7 @@ def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
     | ForInStep.done b => pure b
     | ForInStep.yield b => loop f arr off stop (i+1) b
   else pure b
-termination_by _ => stop - i
+termination_by stop - i
 
 instance : ForIn m ByteSlice UInt8 :=
   ⟨fun ⟨arr, off, len⟩ b f => forIn.loop f arr off (off + len) off b⟩
@@ -92,8 +77,8 @@ def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
     if j < arr.size then
       arr₁.get! i == arr.get! j && loop arr₁ (i+1) (j+1)
     else true
+  termination_by arr.size - j
   bs.len == arr.size && loop bs.arr bs.off 0
-termination_by loop => arr.size - j
 
 def String.toAscii (s : String) : ByteArray :=
   let rec loop (out : ByteArray) (p : Pos) : ByteArray :=
@@ -101,8 +86,8 @@ def String.toAscii (s : String) : ByteArray :=
       let c := s.get p
       have := Nat.sub_lt_sub_left (Nat.gt_of_not_le (mt decide_eq_true h)) (lt_next s _)
       loop (out.push c.toUInt8) (s.next p)
+  termination_by s.endPos.1 - p.1
   loop ByteArray.empty 0
-termination_by loop => s.endPos.1 - p.1
 
 def ByteSlice.toString (bs : ByteSlice) : String := Id.run do
   let mut s := ""
@@ -119,7 +104,7 @@ namespace Metamath
 namespace Verify
 
 open IO.FS (Handle)
-open Lean (HashMap HashSet)
+open Std (HashMap HashSet)
 
 def isLabelChar (c : UInt8) : Bool :=
 c.isAlphanum || c == '-'.toUInt8 || c == '_'.toUInt8 || c == '.'.toUInt8
@@ -147,7 +132,7 @@ def toMath (bs : ByteSlice) : Bool × String := Id.run do
     unless isPrintable c do ok := false
   (ok, s)
 
-structure Pos := (line col : Nat)
+structure Pos where (line col : Nat)
 
 instance : ToString Pos := ⟨fun ⟨l, c⟩ => s!"{l}:{c}"⟩
 
@@ -196,7 +181,7 @@ def Formula.subst (σ : HashMap String Formula) (f : Formula) : Except String Fo
     match c with
     | Sym.const _ => f' := f'.push c
     | Sym.var v =>
-      match σ.find? v with
+      match σ[v]? with
       | none => throw s!"variable {v} not found"
       | some e => f' := e.foldl Array.push f' 1
   pure f'
@@ -258,11 +243,10 @@ def pushHeap (pr : ProofState) (el : HeapEl) : ProofState :=
   { pr with heap := pr.heap.push el }
 
 def save (pr : ProofState) : Except String ProofState :=
-  if pr.stack.isEmpty then
-    throw "can't save empty stack"
-  else
-    let f := pr.stack.back
+  if let some f := pr.stack.back? then
     pure <| pr.pushHeap (HeapEl.fmla f)
+  else
+    throw "can't save empty stack"
 
 end ProofState
 
@@ -271,7 +255,7 @@ inductive Error
 | ax (pos : Pos) (l : String) (f : Formula) (fr : Frame)
 | thm (pos : Pos) (l : String) (f : Formula) (fr : Frame)
 
-structure Interrupt :=
+structure Interrupt where
   e : Error
   idx : Nat
 
@@ -294,12 +278,12 @@ def pushScope (s : DB) : DB :=
   { s with scopes := s.scopes.push s.frame.size }
 
 def popScope (pos : Pos) (db : DB) : DB :=
-  if db.scopes.isEmpty then
-    db.mkError pos "can't pop global scope"
+  if let some sc := db.scopes.back? then
+    { db with frame := db.frame.shrink sc, scopes := db.scopes.pop }
   else
-    { db with frame := db.frame.shrink db.scopes.back, scopes := db.scopes.pop }
+    db.mkError pos "can't pop global scope"
 
-def find? (db : DB) (l : String) : Option Object := db.objects.find? l
+def find? (db : DB) (l : String) : Option Object := db.objects.get? l
 
 def isConst (db : DB) (tk : String) : Bool :=
   if let some (Object.const _) := db.find? tk then true else false
@@ -338,7 +322,7 @@ def insertHyp (db : DB) (pos : Pos) (l : String) (ess : Bool) (f : Formula) : DB
 def trimFrame (db : DB) (fmla : Formula) (fr := db.frame) : Bool × Frame := Id.run do
   let collectVars (fmla : Formula) vars :=
     fmla.foldlVars vars HashSet.insert
-  let mut vars : HashSet String := collectVars fmla HashSet.empty
+  let mut vars : HashSet String := collectVars fmla ∅
   for l in fr.hyps do
     if let some (Object.hyp true f _) := db.find? l then
       vars := collectVars f vars
@@ -392,11 +376,11 @@ def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState 
   (IH : HashMap String Formula → Except String (HashMap String Formula))
   (i : Nat) (h : i < hyps.size)
   (subst : HashMap String Formula) : Except String (HashMap String Formula) := do
-  let val := stack.get ⟨off.1 + i,
+  let val := stack[off.1 + i]'(
     let thm {a b n} : i < a → n + a = b → n + i < b
     | h, rfl => Nat.add_lt_add_left h _
-    thm h off.2⟩
-  if let some (Object.hyp ess f _) := db.find? (hyps.get ⟨i, h⟩) then
+    thm h off.2)
+  if let some (Object.hyp ess f _) := db.find? hyps[i] then
     if f[0]! == val[0]! then
       if ess then
         if (← f.subst subst) == val then
@@ -412,11 +396,11 @@ variable (db : DB) (hyps : Array String) (stack : Array Formula)
 def checkHyp (i : Nat) (subst : HashMap String Formula) :
   Except String (HashMap String Formula) := do
   if h : i < hyps.size then
-    let val := stack.get ⟨off.1 + i,
+    let val := stack[off.1 + i]'(
       let thm {a b n} : i < a → n + a = b → n + i < b
       | h, rfl => Nat.add_lt_add_left h _
-      thm h off.2⟩
-    if let some (Object.hyp ess f _) := db.find? (hyps.get ⟨i, h⟩) then
+      thm h off.2)
+    if let some (Object.hyp ess f _) := db.find? hyps[i] then
       if f[0]! == val[0]! then
         if ess then
           if (← f.subst subst) == val then
@@ -427,19 +411,19 @@ def checkHyp (i : Nat) (subst : HashMap String Formula) :
       else throw s!"bad typecode in substitution {hyps[i]}: {f} / {val}"
     else unreachable!
   else pure subst
-termination_by _ => hyps.size - i
+termination_by hyps.size - i
 
 def stepAssert (db : DB) (pr : ProofState) (f : Formula) : Frame → Except String ProofState
 | ⟨dj, hyps⟩ => do
   if h : hyps.size ≤ pr.stack.size then
     let off : {off // off + hyps.size = pr.stack.size} :=
       ⟨pr.stack.size - hyps.size, Nat.sub_add_cancel h⟩
-    let subst ← checkHyp db hyps pr.stack off 0 HashMap.empty
+    let subst ← checkHyp db hyps pr.stack off 0 ∅
     let disj s1 s2 := s1 != s2 &&
       db.frame.dj.contains (if s1 < s2 then (s1, s2) else (s2, s1))
     for (v1, v2) in dj do
-      let e1 := subst.find! v1
-      let e2 := subst.find! v2
+      let e1 := subst.get! v1
+      let e2 := subst.get! v2
       let disjoint :=
         e1.foldlVars (init := true) fun b s1 =>
           e2.foldlVars b fun b s2 => b && disj s1 s2
@@ -455,7 +439,7 @@ def stepNormal (db : DB) (pr : ProofState) (l : String) : Except String ProofSta
   | _ => throw s!"statement {l} not found"
 
 def stepProof (db : DB) (pr : ProofState) (i : Nat) : Except String ProofState :=
-  match pr.heap.get? i with
+  match pr.heap[i]? with
   | none => throw "proof backref index out of range"
   | some (HeapEl.fmla f) => return pr.push f
   | some (HeapEl.assert f fr) => db.stepAssert pr f fr
@@ -623,11 +607,11 @@ where
       for c in tk do
         if 'A'.toUInt8 ≤ c && c ≤ 'Z'.toUInt8 then
           if c ≤ 'T'.toUInt8 then
-            let n := 20 * chr + (c - 'A'.toUInt8).1
+            let n := 20 * chr + (c - 'A'.toUInt8).toNat
             pr ← s.db.stepProof pr n
             chr := 0
           else if c < 'Z'.toUInt8 then
-            chr := 5 * chr + (c - 'T'.toUInt8).1
+            chr := 5 * chr + (c - 'T'.toUInt8).toNat
           else
             pr ← pr.save
             chr := 0
@@ -722,7 +706,7 @@ if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
 def feed (base : Nat) (arr : ByteArray)
   (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
   if h : i < arr.size then
-    let c := arr.get ⟨i, h⟩
+    let c := arr[i]
     if isWhitespace c then
       match rs with
       | FeedState.ws =>
@@ -748,7 +732,7 @@ def feed (base : Nat) (arr : ByteArray)
         match ot with
         | OldToken.this off => CharParser.token base ⟨arr, off⟩
         | OldToken.old base off arr' => CharParser.token base ⟨arr' ++ arr, off⟩ }
-termination_by _ => arr.size - i
+termination_by arr.size - i
 
 def feedAll (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
   match s.charp with
