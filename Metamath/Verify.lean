@@ -153,17 +153,17 @@ def Frame.shrink : Frame → Nat × Nat → Frame
 instance : ToString Frame := ⟨fun fr => toString fr.hyps⟩
 
 inductive Sym
-| const (c : String)
-| var (v : String)
-deriving Inhabited
+  | const (c : String)
+  | var (v : String)
+  deriving Inhabited
 
 def Sym.isVar : Sym → Bool
-| const _ => false
-| var _ => true
+  | .const _ => false
+  | .var _ => true
 
 def Sym.value : Sym → String
-| const c => c
-| var v => v
+  | .const c => c
+  | .var v => v
 
 instance : BEq Sym := ⟨fun a b => a.value == b.value⟩
 
@@ -179,39 +179,39 @@ def Formula.subst (σ : HashMap String Formula) (f : Formula) : Except String Fo
   let mut f' := #[]
   for c in f do
     match c with
-    | Sym.const _ => f' := f'.push c
-    | Sym.var v =>
+    | .const _ => f' := f'.push c
+    | .var v =>
       match σ[v]? with
       | none => throw s!"variable {v} not found"
       | some e => f' := e.foldl Array.push f' 1
   pure f'
 
 def Formula.foldlVars (self : Formula) (init : α) (f : α → String → α) : α :=
-self.foldl (init := init) (start := 1) fun a v =>
-  match v with
-  | Sym.var v => f a v
-  | _ => a
+  self.foldl (init := init) (start := 1) fun a v =>
+    match v with
+    | .var v => f a v
+    | _ => a
 
 inductive Object
-| const : String → Object
-| var : String → Object
-| hyp : Bool → Formula → String → Object
-| assert : Formula → Frame → String → Object
+  | const : String → Object
+  | var : String → Object
+  | hyp : Bool → Formula → String → Object
+  | assert : Formula → Frame → String → Object
 
 inductive ProofTokenParser
-| start
-| preload
-| normal
-| compressed (chr : Nat)
+  | start
+  | preload
+  | normal
+  | compressed (chr : Nat)
 
 inductive HeapEl
-| fmla (f : Formula)
-| assert (f : Formula) (fr : Frame)
+  | fmla (f : Formula)
+  | assert (f : Formula) (fr : Frame)
 
 instance : ToString HeapEl where
   toString
-  | HeapEl.fmla f => toString f
-  | HeapEl.assert f fr => s!"{fr} |- {f}"
+  | .fmla f => toString f
+  | .assert f fr => s!"{fr} |- {f}"
 
 structure ProofState where
   pos : Pos
@@ -244,16 +244,16 @@ def pushHeap (pr : ProofState) (el : HeapEl) : ProofState :=
 
 def save (pr : ProofState) : Except String ProofState :=
   if let some f := pr.stack.back? then
-    pure <| pr.pushHeap (HeapEl.fmla f)
+    pure <| pr.pushHeap (.fmla f)
   else
     throw "can't save empty stack"
 
 end ProofState
 
 inductive Error
-| error (pos : Pos) (msg : String)
-| ax (pos : Pos) (l : String) (f : Formula) (fr : Frame)
-| thm (pos : Pos) (l : String) (f : Formula) (fr : Frame)
+  | error (pos : Pos) (msg : String)
+  | ax (pos : Pos) (l : String) (f : Formula) (fr : Frame)
+  | thm (pos : Pos) (l : String) (f : Formula) (fr : Frame)
 
 structure Interrupt where
   e : Error
@@ -265,14 +265,14 @@ structure DB where
   objects : HashMap String Object
   interrupt : Bool
   error? : Option Interrupt
-deriving Inhabited
+  deriving Inhabited
 
 namespace DB
 
 @[inline] def error (s : DB) : Bool := s.error?.isSome
 
 def mkError (s : DB) (pos : Pos) (msg : String) : DB :=
-  { s with error? := some ⟨Error.error pos msg, default⟩ }
+  { s with error? := some ⟨.error pos msg, default⟩ }
 
 def pushScope (s : DB) : DB :=
   { s with scopes := s.scopes.push s.frame.size }
@@ -286,15 +286,15 @@ def popScope (pos : Pos) (db : DB) : DB :=
 def find? (db : DB) (l : String) : Option Object := db.objects.get? l
 
 def isConst (db : DB) (tk : String) : Bool :=
-  if let some (Object.const _) := db.find? tk then true else false
+  if let some (.const _) := db.find? tk then true else false
 
 def isVar (db : DB) (tk : String) : Bool :=
-  if let some (Object.var _) := db.find? tk then true else false
+  if let some (.var _) := db.find? tk then true else false
 
 def isSym (db : DB) (tk : String) : Bool :=
   match db.find? tk with
-  | some (Object.const _) => true
-  | some (Object.var _) => true
+  | some (.const _) => true
+  | some (.var _) => true
   | _ => false
 
 @[inline] def withFrame (f : Frame → Frame) (db : DB) : DB :=
@@ -309,14 +309,14 @@ def isSym (db : DB) (tk : String) : Bool :=
 def insert (db : DB) (pos : Pos) (l : String) (obj : String → Object) : DB :=
   if let some o := db.find? l then
     let ok : Bool := match o with
-    | Object.var _ => if let Object.var _ := obj l then true else false
+    | .var _ => if let .var _ := obj l then true else false
     | _ => false
     if ok then db else db.mkError pos s!"duplicate symbol/assert {l}"
   else
     { db with objects := db.objects.insert l (obj l) }
 
 def insertHyp (db : DB) (pos : Pos) (l : String) (ess : Bool) (f : Formula) : DB :=
-  let db := db.insert pos l (Object.hyp ess f)
+  let db := db.insert pos l (.hyp ess f)
   db.withHyps fun hyps => hyps.push l
 
 def trimFrame (db : DB) (fmla : Formula) (fr := db.frame) : Bool × Frame := Id.run do
@@ -324,7 +324,7 @@ def trimFrame (db : DB) (fmla : Formula) (fr := db.frame) : Bool × Frame := Id.
     fmla.foldlVars vars HashSet.insert
   let mut vars : HashSet String := collectVars fmla ∅
   for l in fr.hyps do
-    if let some (Object.hyp true f _) := db.find? l then
+    if let some (.hyp true f _) := db.find? l then
       vars := collectVars f vars
   let mut dj := #[]
   for v in fr.dj do
@@ -335,7 +335,7 @@ def trimFrame (db : DB) (fmla : Formula) (fr := db.frame) : Bool × Frame := Id.
   let mut ok := true
   for l in fr.hyps do
     let ess ←
-      if let some (Object.hyp false f _) := db.find? l then
+      if let some (.hyp false f _) := db.find? l then
         if inHyps then ok := false
         vars.contains f[1]!.value
       else
@@ -351,24 +351,24 @@ def trimFrame' (db : DB) (fmla : Formula) : Except String Frame :=
 
 def insertAxiom (db : DB) (pos : Pos) (l : String) (fmla : Formula) : DB :=
   match db.trimFrame' fmla with
-  | Except.ok fr =>
-    if db.interrupt then { db with error? := some ⟨Error.ax pos l fmla fr, default⟩ }
-    else db.insert pos l (Object.assert fmla fr)
-  | Except.error msg => db.mkError pos msg
+  | .ok fr =>
+    if db.interrupt then { db with error? := some ⟨.ax pos l fmla fr, default⟩ }
+    else db.insert pos l (.assert fmla fr)
+  | .error msg => db.mkError pos msg
 
 def mkProofState (db : DB) (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) :
     ProofState := Id.run do
   let mut heap := #[]
   for l in fr.hyps do
-    if let some (Object.hyp _ f _) := db.find? l then
-      heap := heap.push (HeapEl.fmla f)
-  ⟨pos, l, fmla, fr, heap, #[], ProofTokenParser.start⟩
+    if let some (.hyp _ f _) := db.find? l then
+      heap := heap.push (.fmla f)
+  ⟨pos, l, fmla, fr, heap, #[], .start⟩
 
 def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState :=
   match db.find? l with
-  | some (Object.hyp true _ _) => throw "$e found in paren list"
-  | some (Object.hyp _ f _) => return pr.pushHeap (HeapEl.fmla f)
-  | some (Object.assert f fr _) => return pr.pushHeap (HeapEl.assert f fr)
+  | some (.hyp true _ _) => throw "$e found in paren list"
+  | some (.hyp _ f _) => return pr.pushHeap (.fmla f)
+  | some (.assert f fr _) => return pr.pushHeap (.assert f fr)
   | _ => throw s!"statement {l} not found"
 
 @[inline] def checkHypF (db : DB) (hyps : Array String) (stack : Array Formula)
@@ -380,7 +380,7 @@ def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState 
     let thm {a b n} : i < a → n + a = b → n + i < b
     | h, rfl => Nat.add_lt_add_left h _
     thm h off.2)
-  if let some (Object.hyp ess f _) := db.find? hyps[i] then
+  if let some (.hyp ess f _) := db.find? hyps[i] then
     if f[0]! == val[0]! then
       if ess then
         if (← f.subst subst) == val then
@@ -394,13 +394,13 @@ def preload (db : DB) (pr : ProofState) (l : String) : Except String ProofState 
 variable (db : DB) (hyps : Array String) (stack : Array Formula)
   (off : {off // off + hyps.size = stack.size}) in
 def checkHyp (i : Nat) (subst : HashMap String Formula) :
-  Except String (HashMap String Formula) := do
+    Except String (HashMap String Formula) := do
   if h : i < hyps.size then
     let val := stack[off.1 + i]'(
       let thm {a b n} : i < a → n + a = b → n + i < b
       | h, rfl => Nat.add_lt_add_left h _
       thm h off.2)
-    if let some (Object.hyp ess f _) := db.find? hyps[i] then
+    if let some (.hyp ess f _) := db.find? hyps[i] then
       if f[0]! == val[0]! then
         if ess then
           if (← f.subst subst) == val then
@@ -414,60 +414,59 @@ def checkHyp (i : Nat) (subst : HashMap String Formula) :
 termination_by hyps.size - i
 
 def stepAssert (db : DB) (pr : ProofState) (f : Formula) : Frame → Except String ProofState
-| ⟨dj, hyps⟩ => do
-  if h : hyps.size ≤ pr.stack.size then
-    let off : {off // off + hyps.size = pr.stack.size} :=
-      ⟨pr.stack.size - hyps.size, Nat.sub_add_cancel h⟩
-    let subst ← checkHyp db hyps pr.stack off 0 ∅
-    let disj s1 s2 := s1 != s2 &&
-      db.frame.dj.contains (if s1 < s2 then (s1, s2) else (s2, s1))
-    for (v1, v2) in dj do
-      let e1 := subst.get! v1
-      let e2 := subst.get! v2
-      let disjoint :=
-        e1.foldlVars (init := true) fun b s1 =>
-          e2.foldlVars b fun b s2 => b && disj s1 s2
-      if !disjoint then throw "disjoint variable violation"
-    let concl ← f.subst subst
-    pure { pr with stack := (pr.stack.shrink off).push concl }
-  else throw "stack underflow"
+  | ⟨dj, hyps⟩ => do
+    if h : hyps.size ≤ pr.stack.size then
+      let off : {off // off + hyps.size = pr.stack.size} :=
+        ⟨pr.stack.size - hyps.size, Nat.sub_add_cancel h⟩
+      let subst ← checkHyp db hyps pr.stack off 0 ∅
+      let disj s1 s2 := s1 != s2 &&
+        db.frame.dj.contains (if s1 < s2 then (s1, s2) else (s2, s1))
+      for (v1, v2) in dj do
+        let e1 := subst.get! v1
+        let e2 := subst.get! v2
+        let disjoint :=
+          e1.foldlVars (init := true) fun b s1 =>
+            e2.foldlVars b fun b s2 => b && disj s1 s2
+        if !disjoint then throw "disjoint variable violation"
+      let concl ← f.subst subst
+      pure { pr with stack := (pr.stack.shrink off).push concl }
+    else throw "stack underflow"
 
 def stepNormal (db : DB) (pr : ProofState) (l : String) : Except String ProofState :=
   match db.find? l with
-  | some (Object.hyp _ f _) => return pr.push f
-  | some (Object.assert f fr _) => db.stepAssert pr f fr
+  | some (.hyp _ f _) => return pr.push f
+  | some (.assert f fr _) => db.stepAssert pr f fr
   | _ => throw s!"statement {l} not found"
 
 def stepProof (db : DB) (pr : ProofState) (i : Nat) : Except String ProofState :=
   match pr.heap[i]? with
   | none => throw "proof backref index out of range"
-  | some (HeapEl.fmla f) => return pr.push f
-  | some (HeapEl.assert f fr) => db.stepAssert pr f fr
+  | some (.fmla f) => return pr.push f
+  | some (.assert f fr) => db.stepAssert pr f fr
 
 end DB
 
 inductive CharParser
-| ws : CharParser
-| token : Nat → ByteSliceT → CharParser
-deriving Inhabited
+  | ws : CharParser
+  | token : Nat → ByteSliceT → CharParser
+  deriving Inhabited
 
 inductive TokensKind
-| float
-| ess
-| ax
-| thm
+  | float
+  | ess
+  | ax
+  | thm
 
-open TokensKind in
 instance : ToString TokensKind where
   toString
-  | float => "float"
-  | ess => "ess"
-  | ax => "ax"
-  | thm => "thm"
+  | .float => "float"
+  | .ess => "ess"
+  | .ax => "ax"
+  | .thm => "thm"
 
-def TokensKind.delim
-| thm => "$=".toAscii
-| _ => "$.".toAscii
+def TokensKind.delim : TokensKind → ByteArray
+  | .thm => "$=".toAscii
+  | _ => "$.".toAscii
 
 structure TokensParser where
   k : TokensKind
@@ -478,25 +477,25 @@ instance : ToString TokensParser where
   toString | ⟨k, pos, label⟩ => s!"at {pos}: {k} {label}"
 
 inductive TokenParser
-| start : TokenParser
-| comment : TokenParser → TokenParser
-| const : TokenParser
-| var : TokenParser
-| djvars : Array String → TokenParser
-| math : Array Sym → TokensParser → TokenParser
-| label : Pos → String → TokenParser
-| proof : ProofState → TokenParser
-deriving Inhabited
+  | start : TokenParser
+  | comment : TokenParser → TokenParser
+  | const : TokenParser
+  | var : TokenParser
+  | djvars : Array String → TokenParser
+  | math : Array Sym → TokensParser → TokenParser
+  | label : Pos → String → TokenParser
+  | proof : ProofState → TokenParser
+  deriving Inhabited
 
 def TokenParser.toString : TokenParser → String
-| start => "start"
-| comment p => "comment " ++ toString p
-| const => "const"
-| var => "var"
-| djvars s => s!"djvars {s}"
-| math s p => s!"math {s} {p}"
-| label pos l => s!"at {pos}: ? {l}"
-| proof p => ToString.toString p
+  | .start => "start"
+  | .comment p => "comment " ++ toString p
+  | .const => "const"
+  | .var => "var"
+  | .djvars s => s!"djvars {s}"
+  | .math s p => s!"math {s} {p}"
+  | .label pos l => s!"at {pos}: ? {l}"
+  | .proof p => ToString.toString p
 
 instance : ToString TokenParser := ⟨TokenParser.toString⟩
 
@@ -506,7 +505,7 @@ structure ParserState where
   charp : CharParser
   line : Nat
   linepos : Nat
-deriving Inhabited
+  deriving Inhabited
 
 namespace ParserState
 
@@ -523,65 +522,65 @@ def mkErrorAt (s : ParserState) (pos : Pos) (l msg : String) : ParserState :=
 
 def withAt (l : String) (f : Unit → ParserState) : ParserState :=
   let s := f ()
-  if let some ⟨Error.error pos msg, i⟩ := s.db.error? then
-    s.withDB fun db => { db with error? := some ⟨Error.error pos s!"at {l}: {msg}", i⟩ }
+  if let some ⟨.error pos msg, i⟩ := s.db.error? then
+    s.withDB fun db => { db with error? := some ⟨.error pos s!"at {l}: {msg}", i⟩ }
   else s
 
 def label (s : ParserState) (pos : Pos) (tk : ByteSlice) : ParserState :=
   let (ok, tk) := toLabel tk
-  if ok then { s with tokp := TokenParser.label pos tk }
+  if ok then { s with tokp := .label pos tk }
   else s.mkError pos s!"invalid label '{tk}'"
 
 def withMath (s : ParserState) (pos : Pos) (tk : ByteSlice)
-  (f : ParserState → String → ParserState) : ParserState :=
+    (f : ParserState → String → ParserState) : ParserState :=
   let (ok, tk) := toMath tk
   if !ok then s.mkError pos s!"invalid math string '{tk}'" else
   f s tk
 
 def sym (s : ParserState) (pos : Pos) (tk : ByteSlice) (f : String → Object) : ParserState :=
   if tk.eqArray "$.".toAscii then
-    { s with tokp := TokenParser.start }
+    { s with tokp := .start }
   else s.withMath pos tk fun s tk =>
     s.withDB fun db => db.insert pos tk f
 
 def resumeAxiom (s : ParserState)
-  (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ParserState :=
-  s.withDB fun db => db.insert pos l (Object.assert fmla fr)
+    (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ParserState :=
+  s.withDB fun db => db.insert pos l (.assert fmla fr)
 
 def resumeThm (s : ParserState)
-  (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ParserState :=
+    (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) : ParserState :=
   let pr := s.db.mkProofState pos l fmla fr
-  { s with tokp := TokenParser.proof pr }
+  { s with tokp := .proof pr }
 
 def feedTokens (s : ParserState) (arr : Array Sym) : TokensParser → ParserState
-| ⟨k, pos, l⟩ => withAt l fun _ => Id.run do
-  unless arr.size > 0 && !arr[0]!.isVar do
-    return s.mkError pos "first symbol is not a constant"
-  match k with
-  | TokensKind.float =>
-    unless arr.size == 2 && arr[1]!.isVar do
-      return s.mkError pos "expected a constant and a variable"
-    let s := s.withDB fun db => db.insertHyp pos l false arr
-    pure { s with tokp := TokenParser.start }
-  | TokensKind.ess =>
-    let s := s.withDB fun db => db.insertHyp pos l true arr
-    pure { s with tokp := TokenParser.start }
-  | TokensKind.ax =>
-    let s := s.withDB fun db => db.insertAxiom pos l arr
-    pure { s with tokp := TokenParser.start }
-  | TokensKind.thm =>
-    match s.db.trimFrame' arr with
-    | Except.ok fr =>
-      if s.db.interrupt then
-        s.withDB fun db => { db with error? := some ⟨Error.thm pos l arr fr, default⟩ }
-      else s.resumeThm pos l arr fr
-    | Except.error msg => s.mkError pos msg
+  | ⟨k, pos, l⟩ => withAt l fun _ => Id.run do
+    unless arr.size > 0 && !arr[0]!.isVar do
+      return s.mkError pos "first symbol is not a constant"
+    match k with
+    | .float =>
+      unless arr.size == 2 && arr[1]!.isVar do
+        return s.mkError pos "expected a constant and a variable"
+      let s := s.withDB fun db => db.insertHyp pos l false arr
+      pure { s with tokp := .start }
+    | .ess =>
+      let s := s.withDB fun db => db.insertHyp pos l true arr
+      pure { s with tokp := .start }
+    | .ax =>
+      let s := s.withDB fun db => db.insertAxiom pos l arr
+      pure { s with tokp := .start }
+    | .thm =>
+      match s.db.trimFrame' arr with
+      | .ok fr =>
+        if s.db.interrupt then
+          s.withDB fun db => { db with error? := some ⟨.thm pos l arr fr, default⟩ }
+        else s.resumeThm pos l arr fr
+      | .error msg => s.mkError pos msg
 
 def feedProof (s : ParserState) (tk : ByteSlice) (pr : ProofState) : ParserState :=
   withAt pr.label fun _ =>
     match go pr with
-    | Except.ok pr => { s with tokp := TokenParser.proof pr }
-    | Except.error msg => s.mkError pr.pos msg
+    | .ok pr => { s with tokp := .proof pr }
+    | .error msg => s.mkError pr.pos msg
 where
   goNormal (pr : ProofState) :=
     let (ok, tk) := toLabel tk
@@ -589,19 +588,19 @@ where
     else throw s!"invalid label '{tk}'"
   go (pr : ProofState) : Except String ProofState := do
     match pr.ptp with
-    | ProofTokenParser.start =>
+    | .start =>
       if tk.eqArray "(".toAscii then
-        pure { pr with ptp := ProofTokenParser.preload }
-      else goNormal { pr with ptp := ProofTokenParser.normal }
-    | ProofTokenParser.preload =>
+        pure { pr with ptp := .preload }
+      else goNormal { pr with ptp := .normal }
+    | .preload =>
       if tk.eqArray ")".toAscii then
-        pure { pr with ptp := ProofTokenParser.compressed 0 }
+        pure { pr with ptp := .compressed 0 }
       else
         let (ok, tk) := toLabel tk
         if ok then s.db.preload pr tk
         else throw s!"invalid label '{tk}'"
-    | ProofTokenParser.normal => goNormal pr
-    | ProofTokenParser.compressed chr =>
+    | .normal => goNormal pr
+    | .compressed chr =>
       let mut pr := pr
       let mut chr := chr
       for c in tk do
@@ -619,44 +618,44 @@ where
           throw "proof contains '?'"
         else
           throw "proof parse error"
-      pure { pr with ptp := ProofTokenParser.compressed chr }
+      pure { pr with ptp := .compressed chr }
 
 def finishProof (s : ParserState) : ProofState → ParserState
-| ⟨pos, l, fmla, fr, _, stack, ptp⟩ => withAt l fun _ => Id.run do
-  let s := { s with tokp := TokenParser.start }
-  match ptp with
-  | ProofTokenParser.compressed 0 => ()
-  | ProofTokenParser.normal => ()
-  | _ => return s.mkError pos "proof parse error"
-  unless stack.size == 1 do
-    return s.mkError pos "more than one element on stack"
-  unless stack[0]! == fmla do
-    return s.mkError pos "theorem does not prove what it claims"
-  s.withDB fun db => db.insert pos l (Object.assert fmla fr)
+  | ⟨pos, l, fmla, fr, _, stack, ptp⟩ => withAt l fun _ => Id.run do
+    let s := { s with tokp := .start }
+    match ptp with
+    | .compressed 0 => ()
+    | .normal => ()
+    | _ => return s.mkError pos "proof parse error"
+    unless stack.size == 1 do
+      return s.mkError pos "more than one element on stack"
+    unless stack[0]! == fmla do
+      return s.mkError pos "theorem does not prove what it claims"
+    s.withDB fun db => db.insert pos l (.assert fmla fr)
 
 def feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) : ParserState :=
   let pos := s.mkPos pos
   match s.tokp with
-  | TokenParser.comment p =>
+  | .comment p =>
     if tk.eqArray "$)".toAscii then { s with tokp := p } else s
   | p =>
     if tk.eqArray "$(".toAscii then { s with tokp := p.comment } else
     match p with
-    | TokenParser.comment _ => unreachable!
-    | TokenParser.start =>
+    | .comment _ => unreachable!
+    | .start =>
       if tk.len == 2 && tk[0] == '$'.toUInt8 then
         match tk[1].toChar with
-        | '{' => s.withDB DB.pushScope
-        | '}' => s.withDB (DB.popScope pos)
-        | 'c' => { s with tokp := TokenParser.const }
-        | 'v' => { s with tokp := TokenParser.var }
-        | 'd' => { s with tokp := TokenParser.djvars #[] }
+        | '{' => s.withDB .pushScope
+        | '}' => s.withDB (.popScope pos)
+        | 'c' => { s with tokp := .const }
+        | 'v' => { s with tokp := .var }
+        | 'd' => { s with tokp := .djvars #[] }
         | _ => s.label pos tk
       else s.label pos tk
-    | TokenParser.const => s.sym pos tk Object.const
-    | TokenParser.var => s.sym pos tk Object.var
-    | TokenParser.djvars arr =>
-      if tk.eqArray "$.".toAscii then { s with tokp := TokenParser.start } else
+    | .const => s.sym pos tk .const
+    | .var => s.sym pos tk .var
+    | .djvars arr =>
+      if tk.eqArray "$.".toAscii then { s with tokp := .start } else
       s.withMath pos tk fun s tk => Id.run do
         unless s.db.isVar tk do return s.mkError pos s!"{tk} is not a variable"
         let mut s := s
@@ -665,101 +664,101 @@ def feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) : ParserState :=
             return s.mkError pos s!"duplicate disjoint variable {tk}"
           let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
           s := s.withDB fun db => db.withDJ fun dj => dj.push p
-        { s with tokp := TokenParser.djvars (arr.push tk) }
-    | TokenParser.math arr p =>
+        { s with tokp := .djvars (arr.push tk) }
+    | .math arr p =>
       if tk.eqArray p.k.delim then
         s.feedTokens arr p
       else
         s.withMath pos tk fun s tk => Id.run do
           let tk ← match s.db.find? tk with
-          | some (Object.const _) => Sym.const tk
-          | some (Object.var _) => Sym.var tk
+          | some (.const _) => Sym.const tk
+          | some (.var _) => Sym.var tk
           | _ => return s.mkError pos s!"{tk} is not a constant or variable"
-          { s with tokp := TokenParser.math (arr.push tk) p }
-    | TokenParser.label pos lab =>
+          { s with tokp := .math (arr.push tk) p }
+    | .label pos lab =>
       if tk.len == 2 && tk[0] == '$'.toUInt8 then
         let go (s : ParserState) (k : TokensKind) :=
-          { s with tokp := TokenParser.math #[] ⟨k, pos, lab⟩ }
+          { s with tokp := .math #[] ⟨k, pos, lab⟩ }
         match tk[1].toChar with
-        | 'f' => go s TokensKind.float
-        | 'e' => go s TokensKind.ess
-        | 'a' => go s TokensKind.ax
-        | 'p' => go s TokensKind.thm
+        | 'f' => go s .float
+        | 'e' => go s .ess
+        | 'a' => go s .ax
+        | 'p' => go s .thm
         | _ => s.mkError pos s!"unknown statement type {(toLabel tk).2}"
       else s.mkError pos s!"unknown statement type {(toLabel tk).2}"
-    | TokenParser.proof pr =>
+    | .proof pr =>
       let s := { s with tokp := default }
       if tk.eqArray "$.".toAscii then s.finishProof pr
       else s.feedProof tk pr
 
 inductive OldToken
-| this (off : Nat)
-| old (base off : Nat) (arr : ByteArray)
+  | this (off : Nat)
+  | old (base off : Nat) (arr : ByteArray)
 
 inductive FeedState
-| ws : FeedState
-| token : OldToken → FeedState
+  | ws : FeedState
+  | token : OldToken → FeedState
 
 def updateLine (s : ParserState) (i : Nat) (c : UInt8) : ParserState :=
-if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
+  if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
 
 def feed (base : Nat) (arr : ByteArray)
-  (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
+    (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
   if h : i < arr.size then
     let c := arr[i]
     if isWhitespace c then
       match rs with
-      | FeedState.ws =>
+      | .ws =>
         let s := s.updateLine (base + i) c
-        feed base arr (i+1) FeedState.ws s
-      | FeedState.token ot =>
+        feed base arr (i+1) .ws s
+      | .token ot =>
         let s := match ot with
-        | OldToken.this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
-        | OldToken.old base off arr' => s.feedToken (base + off)
+        | .this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
+        | .old base off arr' => s.feedToken (base + off)
           ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
         let s : ParserState := s.updateLine (base + i) c
         if let some ⟨e, _⟩ := s.db.error? then
           { s with db := { s.db with error? := some ⟨e, i+1⟩ } }
-        else feed base arr (i+1) FeedState.ws s
+        else feed base arr (i+1) .ws s
     else
-      let rs := if let FeedState.ws := rs then FeedState.token (OldToken.this i) else rs
+      let rs := if let .ws := rs then .token (.this i) else rs
       feed base arr (i+1) rs s
   else
     { s with charp :=
       match rs with
-      | FeedState.ws => CharParser.ws
-      | FeedState.token ot =>
+      | .ws => .ws
+      | .token ot =>
         match ot with
-        | OldToken.this off => CharParser.token base ⟨arr, off⟩
-        | OldToken.old base off arr' => CharParser.token base ⟨arr' ++ arr, off⟩ }
+        | .this off => .token base ⟨arr, off⟩
+        | .old base off arr' => .token base ⟨arr' ++ arr, off⟩ }
 termination_by arr.size - i
 
 def feedAll (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
   match s.charp with
-  | CharParser.ws => s.feed base arr 0 FeedState.ws
-  | CharParser.token base' ⟨arr', off⟩ =>
+  | .ws => s.feed base arr 0 .ws
+  | .token base' ⟨arr', off⟩ =>
     let s := { s with charp := default }
-    s.feed base arr 0 (FeedState.token (OldToken.old base' off arr'))
+    s.feed base arr 0 (.token (.old base' off arr'))
 
 def done (s : ParserState) (base : Nat) : DB := Id.run do
   let mut s := s
-  if let CharParser.token pos tk := s.charp then
+  if let .token pos tk := s.charp then
     s := s.feedToken pos tk.toSlice
   let base := s.mkPos base
   let { db := db, tokp := tokp, ..} := s
   match tokp with
-  | TokenParser.start => db
-  | TokenParser.comment _ => db.mkError base "unclosed comment"
-  | TokenParser.const => db.mkError base "unclosed $c"
-  | TokenParser.var => db.mkError base "unclosed $v"
-  | TokenParser.djvars _ => db.mkError base "unclosed $d"
-  | TokenParser.math _ p => match p.k with
-    | TokensKind.float => db.mkError base "unclosed $f"
-    | TokensKind.ess => db.mkError base "unclosed $e"
-    | TokensKind.ax => db.mkError base "unclosed $a"
-    | TokensKind.thm => db.mkError base "unclosed $p"
-  | TokenParser.label pos _ => db.mkError pos "not a command"
-  | TokenParser.proof _ => db.mkError base "unclosed $p proof"
+  | .start => db
+  | .comment _ => db.mkError base "unclosed comment"
+  | .const => db.mkError base "unclosed $c"
+  | .var => db.mkError base "unclosed $v"
+  | .djvars _ => db.mkError base "unclosed $d"
+  | .math _ p => match p.k with
+    | .float => db.mkError base "unclosed $f"
+    | .ess => db.mkError base "unclosed $e"
+    | .ax => db.mkError base "unclosed $a"
+    | .thm => db.mkError base "unclosed $p"
+  | .label pos _ => db.mkError pos "not a command"
+  | .proof _ => db.mkError base "unclosed $p proof"
 
 end ParserState
 
