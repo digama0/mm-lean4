@@ -1700,6 +1700,19 @@ theorem db_success_wf (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : 
     · intro _
       exact essential_in_db_wellformed db l f lbl h_no_error h_find
 
+/-- Parser success implies float variables are unique in the database frame.
+
+When the parser successfully processes (db.error? = none), insertHyp enforces
+that no two float hypotheses share the same variable (Verify.lean lines 304-306).
+
+This directly applies the core parser axiom from ParserInvariants.
+-/
+theorem parser_enforces_unique_floats
+    (db : Verify.DB)
+    (h_success : db.error? = none) :
+    UniqueFloatVars db db.frame :=
+  ParserInvariants.parser_success_implies_unique_frame_floats db h_success
+
 /-! ## Substitution Correspondence
 
 **Statement:** When the implementation successfully substitutes σ_impl into f_impl to get concl_impl,
