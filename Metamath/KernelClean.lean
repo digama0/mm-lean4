@@ -1617,8 +1617,28 @@ theorem floats_allM_of_mem (fr : Spec.Frame) (σ_impl : Std.HashMap String Verif
     checkFloat σ_impl c v = some true := by
   exact (List.allM_true_iff_forall (fun x => checkFloat σ_impl x.fst x.snd) (Bridge.floats fr) |>.mp) h_allM (c, v) h_mem
 
-/-- Parser success implies well-formedness.
-When DB validation succeeds, hypothesis structure is guaranteed correct.
+/-- Float in DB with no error must have size 2.
+insertHyp validates: for ess=false floats, checks f.size >= 2 (Verify.lean line 299).
+If no error occurred, this check passed.
+-/
+theorem float_in_db_has_size_2 (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : String)
+    (h_no_error : db.error? = none)
+    (h_find : db.find? l = some (.hyp false f lbl)) :
+    f.size = 2 := by
+  sorry  -- insertHyp enforces f.size >= 2 for floats (Verify.lean line 299)
+         -- Since no error, check passed; WellFormedFloat also requires size=2
+
+/-- Essential hyp in DB with no error is well-formed.
+Parser maintains structure for essential hypotheses through insertHyp.
+-/
+theorem essential_in_db_wellformed (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : String)
+    (h_no_error : db.error? = none)
+    (h_find : db.find? l = some (.hyp true f lbl)) :
+    WellFormedFormula f := by
+  sorry  -- Parser validates formula structure during insertHyp
+         -- All essential hyps inserted must be well-formed
+
+/-- Composed: Parser success implies hypothesis well-formedness.
 -/
 theorem db_success_wf (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : String) (ess : Bool)
     (h_no_error : db.error? = none)
@@ -1627,12 +1647,15 @@ theorem db_success_wf (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : 
   cases ess with
   | false =>
     constructor
-    · intro _; sorry  -- Parser validates float structure
+    · intro _
+      have h_size := float_in_db_has_size_2 db l f lbl h_no_error h_find
+      exact ⟨h_size, sorry⟩  -- WellFormedFloat needs: size=2 + structure check
     · intro h; cases h
   | true =>
     constructor
     · intro h; cases h
-    · intro _; sorry  -- Parser validates formula structure
+    · intro _
+      exact essential_in_db_wellformed db l f lbl h_no_error h_find
 
 /-! ## Substitution Correspondence
 
