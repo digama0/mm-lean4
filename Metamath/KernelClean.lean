@@ -372,6 +372,42 @@ theorem allM_true_of_mem {α} (p : α → Option Bool) {xs : List α}
   p x = some true :=
   List.allM_true_of_mem p hall hx
 
+/-! ## Pattern: allM Membership Extraction
+
+**Problem**: When we have `xs.allM p = some true` (list validation), we need
+to extract pointwise success for individual elements: `∃ x ∈ xs, p x = some true`.
+
+**Solution**: Use `allM_true_iff_forall` and membership to recover the property.
+
+**Example Usage** (from line 1618 - floats_allM_of_mem):
+```lean
+theorem floats_allM_of_mem (fr : Spec.Frame) (σ_impl : HashMap String Formula)
+    (c : Constant) (v : Variable)
+    (h_mem : (c, v) ∈ Bridge.floats fr)
+    (h_allM : (Bridge.floats fr).allM (fun x => checkFloat σ_impl x.fst x.snd) = some true) :
+    checkFloat σ_impl c v = some true := by
+  exact (List.allM_true_iff_forall (fun x => checkFloat σ_impl x.fst x.snd) (Bridge.floats fr) |>.mp)
+         h_allM (c, v) h_mem
+```
+
+**Key Steps**:
+1. Apply `allM_true_iff_forall p xs` to convert monadic validation to pointwise
+2. Use `.mp` (modus ponens) to extract the forward direction
+3. Apply to the element and its membership proof
+4. Result: `p element = some true`
+
+**Pattern Extension**:
+To create similar membership extraction lemmas:
+1. Identify the list and predicate (e.g., `Bridge.floats fr` and `checkFloat`)
+2. Add: `theorem <name>_allM_of_mem (h_mem : elem ∈ list) (h_allM : list.allM pred = some true) : pred elem = some true`
+3. Proof: `exact (allM_true_iff_forall pred list |>.mp) h_allM elem h_mem`
+
+**Current Users**:
+- `floats_allM_of_mem` (line 1617-1620) - extracts checkFloat success for float pairs
+- `checkHyp_validates_floats` (line 2371+) - uses pattern in allM reasoning
+- Any future validation over `Bridge.floats`, `Bridge.essentials`, or other lists
+-/
+
 /-! ## ✅ PHASE 4 COMPLETE: Bridge functions (IMPLEMENTED) -/
 
 /-- Helper: toExpr that returns Option for bridge functions -/
