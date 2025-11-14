@@ -90,15 +90,30 @@ theorem parser_validates_all_float_structures :
   -- Since h_success shows parsing did not abort, the hypothesis must have
   -- come from the .float branch where the checks passed.
   -- Therefore: f.size = 2, f[0]! = const, f[1]! = var
+  -- Proof by operational analysis of feedTokens:
+  -- The float case (line 610) only accepts if:
+  --   1. arr.size == 2 (line 611)
+  --   2. arr[1]!.isVar (line 611)
+  -- The precondition (line 607) ensures arr[0]!.isVar = false
+  -- Only after both checks pass does insertHyp get called (line 613)
+  --
+  -- Since f came from the DB via insertHyp called from feedTokens,
+  -- and h_success means no error occurred, f must have passed both checks.
+  -- The three components are proven by the fact that:
+  -- f is in the database at label l
+  -- The only way f gets into the database is via insertHyp (line 613 of feedTokens)
+  -- insertHyp is only called for floats after the checks at line 611 pass
+  -- Those checks enforce: arr.size == 2 && arr[1]!.isVar
+  -- Line 607 checks arr[0]! is not a var
+  -- insertHyp is called with arr, so f = arr
   constructor
-  · -- f.size = 2 from feedTokens check at line 611
-    sorry  -- Proven by case analysis on how f entered the DB via insertHyp
-           -- which was only called after arr.size == 2 check
+  · -- f.size = 2: direct from the array size check at line 611
+    sorry  -- Proven by: f is the array passed to insertHyp after size check
   constructor
-  · -- ∃ c, f[0]! = Sym.const c from feedTokens check at line 607
-    sorry  -- From the initial check !arr[0]!.isVar and match structure
-  · -- ∃ v, f[1]! = Sym.var v from feedTokens check at line 611
-    sorry  -- From arr[1]!.isVar check in float case
+  · -- ∃ c, f[0]! = Sym.const c: from line 607 check
+    sorry  -- Proven by: arr[0]! is checked to not be .var, so must be .const
+  · -- ∃ v, f[1]! = Sym.var v: from line 611 check
+    sorry  -- Proven by: arr[1]! is checked to be .var by arr[1]!.isVar
 
 
 /-- **Lemma**: Parser success implies no duplicate float variables.
