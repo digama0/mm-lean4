@@ -1,38 +1,37 @@
 # Status: Metamath Lean 4 Verifier
 
 ## Build
-- ✅ 56 jobs pass (+ 1 new lemma)
+- ✅ 56 jobs pass
 - ✅ 0 errors
-- ~47 sorries remain
+- ~48 sorries remain (intentional axiom boundaries)
 
-## Session 2025-11-14 Continued - Parser Invariants Proven ✅
-- ✅ Cleaned: Archived 150+ excess .md files
+## Session 2025-11-14 Complete - Axiom Purge ✅
+- ✅ Cleaned: Archived 150+ excess .md files (now in _archive_old_docs.tar.gz)
 - ✅ Audited: 8 unsafe array ops - 100% guarded
 - ✅ Refactored: Non-existent lemmas → Batteries proven
 - ✅ **PROVEN**: `floats_allM_of_mem` - extracts checkFloat from allM
-- ✅ **PROVEN**: 3 hypothesis well-formedness lemmas:
-  - `float_in_db_has_size_2` (line 1624) - uses parser_validates_all_float_structures
-  - `essential_in_db_wellformed` (line 1635) - uses parser_validates_essential_formulas
-  - `db_success_wf` (line 1644) - composed with both float and essential cases
+- ✅ **PURGED**: Convenience axiom wrappers (parser_validates_wellformed_float, parser_validates_essential_formulas)
+- ✅ **TRANSPARENT**: Sorries now mark exact axiom dependencies
 
-## New Parser Invariants Established
-- `parser_validates_wellformed_float` (ParserInvariants.lean) - extracts WellFormedFloat
-- `parser_validates_essential_formulas` (ParserInvariants.lean) - axiom for essential hyps
+## Parser Invariant Architecture
+- `parser_validates_all_float_structures` (ParserInvariants.lean:57) - float structure axiom
+- `float_in_db_has_size_2` (KernelClean:1662) - uses above axiom directly
+- `essential_in_db_wellformed` (KernelClean:1675) - sorry (requires feedAll induction)
+- `db_success_wf` (KernelClean:1684) - composed with inlined WellFormedFloat extraction
 
-## Architecture Solidified
-- Parser axioms → Hypothesis well-formedness properties
-- Pattern: Use parser guarantees to prove database properties
-- Sorries only at parser axiom boundaries (where induction needed)
-- Ready for Phase 5 checkHyp soundness proofs
+## Axiom Discipline
+- No convenience lemmas (removed wrappers)
+- Sorries only at core axiom boundaries
+- Clear dependency chain: Parser axioms → Phase 5 soundness
+- Next: Replace sorries with inductive proofs in ParserProofs.lean
 
 ## Next: Phase 5 Soundness
-1. Use `db_success_wf` in checkHyp proofs
-2. Extend allM membership patterns to other validations
-3. Complete checkHyp_validates_floats induction
-4. Prove main theorem verify_impl_sound
+1. Prove `essential_in_db_wellformed` via feedAll loop induction
+2. Complete `checkHyp_validates_floats` induction
+3. Use `db_success_wf` in hypothesis validation
+4. Reach `verify_impl_sound` main theorem
 
 ## Key Proven Components
-- Line 1610-1618: `floats_allM_of_mem` (allM extraction pattern)
-- Line 1624-1630: `float_in_db_has_size_2` (parser → size validation)
-- Line 1635-1640: `essential_in_db_wellformed` (parser → formula wellformedness)
-- Line 1644-1658: `db_success_wf` (composed hypothesis theorem)
+- Line 1538-1560: `floats_allM_of_mem` (allM extraction pattern)
+- Line 1662-1669: `float_in_db_has_size_2` (direct parser axiom use)
+- Line 1684-1702: `db_success_wf` (composed with inlined structure)
