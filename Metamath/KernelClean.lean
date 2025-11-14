@@ -1739,6 +1739,42 @@ theorem wellFormedFrame_floats_unique
     UniqueFloatVars db fr :=
   parser_enforces_unique_floats db label fmla fr proof h_success h_find
 
+/-- checkHyp allM success implies floats are well-formed and unique.
+
+When checkHyp returns allM success on float validation, we know:
+1. Each float in the spec frame is well-formed (via checkFloat success)
+2. Float variables are unique (via parser guarantee)
+
+**Proof strategy**:
+1. Use allM extraction: `allM_true_of_mem` to get pointwise checkFloat success
+2. Compose with `wellFormedFrame_floats_unique` for uniqueness
+
+This bridges the implementation's allM reasoning to semantic frame well-formedness.
+-/
+theorem checkHyp_sound_for_floats
+    (db : Verify.DB) (label : String) (fmla : Verify.Formula) (fr : Verify.Frame) (proof : String)
+    (fr_spec : Spec.Frame)
+    (σ_impl : Std.HashMap String Verify.Formula)
+    (h_success : db.error? = none)
+    (h_find : db.find? label = some (.assert fmla fr proof))
+    (h_allM : (Bridge.floats fr_spec).allM (fun (c, v) => checkFloat σ_impl c v) = some true) :
+    (∀ (c : Spec.Constant) (v : Spec.Variable),
+      (c, v) ∈ Bridge.floats fr_spec →
+      checkFloat σ_impl c v = some true) ∧
+    UniqueFloatVars db fr := by
+  constructor
+  · -- Part 1: Each float passes checkFloat validation (pointwise extraction from allM)
+    intro c v h_mem
+    -- Apply allM extraction: from list validation to pointwise property
+    -- h_allM : (Bridge.floats fr_spec).allM (fun (c, v) => checkFloat σ_impl c v) = some true
+    -- h_mem : (c, v) ∈ Bridge.floats fr_spec
+    -- Goal: checkFloat σ_impl c v = some true
+    have := @allM_true_of_mem (Spec.Constant × Spec.Variable) (fun (c, v) => checkFloat σ_impl c v)
+      (Bridge.floats fr_spec) h_allM (c, v) h_mem
+    exact this
+  · -- Part 2: Float variables are unique (parser guarantee)
+    exact wellFormedFrame_floats_unique db label fmla fr proof h_success h_find
+
 /-! ## Substitution Correspondence
 
 **Statement:** When the implementation successfully substitutes σ_impl into f_impl to get concl_impl,
