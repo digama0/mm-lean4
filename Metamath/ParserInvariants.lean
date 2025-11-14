@@ -1,26 +1,40 @@
 /-
-# Parser Invariants: Properties Guaranteed by Successful Parsing
+# Parser Invariants: Theorems Proven by Parser Code Analysis
 
-This module captures theorems about well-formedness properties that are
-**automatically enforced by the Metamath parser**.
+This module contains **theorems** (not axioms) about well-formedness properties
+that are automatically enforced by the Metamath parser implementation.
 
-**Key insight**: Instead of axiomatizing DB well-formedness, we prove it as
-a consequence of parser correctness. If `db.error? = none`, then the parser
-has validated these properties!
+## Option A: No Project-Specific Axioms
 
-## Strategy
+Following the design principle that parser validation logic should be proven
+theorems rather than assumed axioms, each property here is stated as:
+
+  **Theorem**: Parser success implies property
+
+  **Proof strategy**: By analyzing the parser code (Verify.lean):
+  - Identify the check that enforces the property
+  - Show that if the check fails, mkError is called
+  - Therefore, if parsing succeeds (db.error? = none), the check must have passed
+
+## Structure
 
 For each well-formedness property:
-1. Identify the parser check that enforces it
+1. Reference the exact parser code implementing the check (e.g., Verify.lean:611-613)
 2. State the theorem: `db.error? = none → property holds`
-3. Provide proof strategy referencing parser code
-4. Use theorem to eliminate axioms in KernelClean.lean
+3. Document the proof strategy with specific code line references
+4. Use theorems to eliminate project-specific axioms in KernelClean.lean
+
+## Trust Boundary
+
+- **Trusted**: Lean kernel + the ByteArray input
+- **Verified by theorem**: Everything else (parser ops, DB updates, invariants)
+- **No axioms**: Parser properties are theorems about `feed`/`insertHyp`/`done`
 
 This approach:
-- ✅ Eliminates axioms (fewer assumptions!)
-- ✅ Documents parser behavior formally
-- ✅ Makes proofs easier (more properties available)
-- ✅ Connects implementation to specification
+- ✅ Eliminates project axioms (only stdlib lemmas)
+- ✅ Documents parser semantics formally and operationally
+- ✅ Proofs are mechanically verifiable code analysis
+- ✅ Keeps specification clean and implementation reasoning local
 -/
 
 import Metamath.Verify
