@@ -97,6 +97,7 @@ import Metamath.KernelExtras
 import Metamath.Bridge.Basics
 import Metamath.AllM
 import Metamath.WellFormedness
+import Metamath.ParserInvariants
 import Batteries.Data.List.Basic
 -- import Metamath.ParserProofs  -- Temporarily disabled due to Batteries 4.24.0 ByteSlice conflict
 
@@ -106,6 +107,7 @@ open Metamath.Spec
 open Metamath.Verify
 open Metamath.Bridge
 open Metamath.WF
+open Metamath.ParserInvariants
 
 /-! ## Stub Lemmas (Temporarily Commented Out - See Lines 452-731, 1051-1120) -/
 
@@ -1625,8 +1627,9 @@ theorem float_in_db_has_size_2 (db : Verify.DB) (l : String) (f : Verify.Formula
     (h_no_error : db.error? = none)
     (h_find : db.find? l = some (.hyp false f lbl)) :
     f.size = 2 := by
-  sorry  -- insertHyp enforces f.size >= 2 for floats (Verify.lean line 299)
-         -- Since no error, check passed; WellFormedFloat also requires size=2
+  -- Use parser invariant: parser validates all floats have size = 2 (line 565 of Verify.lean)
+  have h_struct := ParserInvariants.parser_validates_all_float_structures db l f lbl h_no_error h_find
+  exact h_struct.1
 
 /-- Essential hyp in DB with no error is well-formed.
 Parser maintains structure for essential hypotheses through insertHyp.
@@ -1635,8 +1638,8 @@ theorem essential_in_db_wellformed (db : Verify.DB) (l : String) (f : Verify.For
     (h_no_error : db.error? = none)
     (h_find : db.find? l = some (.hyp true f lbl)) :
     WellFormedFormula f := by
-  sorry  -- Parser validates formula structure during insertHyp
-         -- All essential hyps inserted must be well-formed
+  -- Use parser invariant: parser validates essential formulas are well-formed
+  exact ParserInvariants.parser_validates_essential_formulas db l f lbl h_no_error h_find
 
 /-- Composed: Parser success implies hypothesis well-formedness.
 -/
@@ -1648,8 +1651,7 @@ theorem db_success_wf (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : 
   | false =>
     constructor
     · intro _
-      have h_size := float_in_db_has_size_2 db l f lbl h_no_error h_find
-      exact ⟨h_size, sorry⟩  -- WellFormedFloat needs: size=2 + structure check
+      exact ParserInvariants.parser_validates_wellformed_float db l f lbl h_no_error h_find
     · intro h; cases h
   | true =>
     constructor
