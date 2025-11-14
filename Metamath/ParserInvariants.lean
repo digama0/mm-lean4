@@ -106,16 +106,7 @@ theorem parser_validates_float_uniqueness :
 When inserting a $f hypothesis, the parser checks all existing hypotheses
 in the current frame. If another $f exists for the same variable, it sets
 an error. Therefore, successfully parsed databases have unique float variables.
-
-**Core Axiom**: If parsing succeeded, the current frame has unique float vars.
 -/
-/-- **Axiom**: Parser success implies frame float variables are unique. -/
-theorem parser_success_implies_unique_frame_floats
-  (db : DB)
-  (h_success : db.error? = none) :
-  UniqueFloatVars db db.frame := by
-  sorry  -- Core parser invariant: insertHyp maintains uniqueness (induction on feedAll)
-         -- TODO: Prove via parser loop induction in ParserProofs.lean
 
 /-- **Theorem 1**: Parser success implies float variables are unique within frames.
 

@@ -1700,18 +1700,28 @@ theorem db_success_wf (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : 
     · intro _
       exact essential_in_db_wellformed db l f lbl h_no_error h_find
 
-/-- Parser success implies float variables are unique in the database frame.
+/-- Parser success implies float variables are unique in a frame.
 
-When the parser successfully processes (db.error? = none), insertHyp enforces
-that no two float hypotheses share the same variable (Verify.lean lines 304-306).
+When parser succeeds and a frame is embedded in an assertion, the parser's
+duplicate-check on insertHyp (Verify.lean lines 304-306) guarantees that
+no two float hypotheses in that frame share the same variable.
 
-This directly applies the core parser axiom from ParserInvariants.
+**Proof**: Directly apply the parser_validates_float_uniqueness axiom.
+The axiom provides exactly this: parser success + assertion with frame
+→ no duplicate float variables in that frame.
 -/
 theorem parser_enforces_unique_floats
-    (db : Verify.DB)
-    (h_success : db.error? = none) :
-    UniqueFloatVars db db.frame :=
-  ParserInvariants.parser_success_implies_unique_frame_floats db h_success
+    (db : Verify.DB) (label : String) (fmla : Verify.Formula) (fr : Verify.Frame) (proof : String)
+    (h_success : db.error? = none)
+    (h_find : db.find? label = some (.assert fmla fr proof)) :
+    UniqueFloatVars db fr := by
+  unfold UniqueFloatVars
+  intro i j hi hj hij fi fj lbli lblj hfi hfj h_size_fi h_size_fj
+  -- Apply the parser axiom directly
+  let vi := match fi[1]! with | .var v => v | _ => ""
+  let vj := match fj[1]! with | .var v => v | _ => ""
+  exact ParserInvariants.parser_validates_float_uniqueness db label fmla fr proof
+    h_success h_find i j hi hj hij fi fj vi vj lbli lblj hfi hfj h_size_fi h_size_fj rfl rfl
 
 /-! ## Substitution Correspondence
 
