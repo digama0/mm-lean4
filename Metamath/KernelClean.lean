@@ -107,7 +107,6 @@ open Metamath.Spec
 open Metamath.Verify
 open Metamath.Bridge
 open Metamath.WF
-open Metamath.ParserInvariants
 
 /-! ## Stub Lemmas (Temporarily Commented Out - See Lines 452-731, 1051-1120) -/
 
@@ -1663,19 +1662,21 @@ theorem float_in_db_has_size_2 (db : Verify.DB) (l : String) (f : Verify.Formula
     (h_no_error : db.error? = none)
     (h_find : db.find? l = some (.hyp false f lbl)) :
     f.size = 2 := by
-  -- Use parser invariant: parser validates all floats have size = 2 (line 565 of Verify.lean)
+  -- Parser validates all floats have size = 2 (from feedTokens line 565)
+  -- This requires inductive proof on parser operations
   have h_struct := ParserInvariants.parser_validates_all_float_structures db l f lbl h_no_error h_find
   exact h_struct.1
 
 /-- Essential hyp in DB with no error is well-formed.
-Parser maintains structure for essential hypotheses through insertHyp.
+Parser validates essential hypothesis structure during insertion.
+Proof requires induction on parser loop (TODO: ParserProofs.lean).
 -/
 theorem essential_in_db_wellformed (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : String)
     (h_no_error : db.error? = none)
     (h_find : db.find? l = some (.hyp true f lbl)) :
     WellFormedFormula f := by
-  -- Use parser invariant: parser validates essential formulas are well-formed
-  exact ParserInvariants.parser_validates_essential_formulas db l f lbl h_no_error h_find
+  sorry  -- Requires: induction on parser operations showing WF preservation
+         -- buildable from: feedAll_preserves_wf_formula (if proven in ParserProofs)
 
 /-- Composed: Parser success implies hypothesis well-formedness.
 -/
@@ -1687,7 +1688,11 @@ theorem db_success_wf (db : Verify.DB) (l : String) (f : Verify.Formula) (lbl : 
   | false =>
     constructor
     · intro _
-      exact ParserInvariants.parser_validates_wellformed_float db l f lbl h_no_error h_find
+      -- WellFormedFloat needs: size=2 + structure (c, v pair)
+      have h_size := float_in_db_has_size_2 db l f lbl h_no_error h_find
+      have h_struct := ParserInvariants.parser_validates_all_float_structures db l f lbl h_no_error h_find
+      obtain ⟨_, ⟨c, hc⟩, ⟨v, hv⟩⟩ := h_struct
+      exact ⟨h_size, c, v, hc, hv⟩
     · intro h; cases h
   | true =>
     constructor

@@ -66,39 +66,6 @@ theorem parser_validates_all_float_structures :
     (∃ v : String, f[1]! = Sym.var v) := by
   sorry
 
-/-- **Convenience lemma**: Extract well-formed float structure from parser validation. -/
-theorem parser_validates_wellformed_float :
-  ∀ (db : DB) (l : String) (f : Formula) (lbl : String),
-    db.error? = none →
-    db.find? l = some (.hyp false f lbl) →
-    WellFormedFloat f := by
-  intros db l f lbl h_no_error h_find
-  have h_struct := parser_validates_all_float_structures db l f lbl h_no_error h_find
-  unfold WellFormedFloat
-  -- h_struct : f.size = 2 ∧ (∃ c, f[0]! = Sym.const c) ∧ (∃ v, f[1]! = Sym.var v)
-  -- Need: f.size = 2 ∧ ∃ c v : String, f[0]! = Sym.const c ∧ f[1]! = Sym.var v
-  obtain ⟨h_size, ⟨c, hc⟩, ⟨v, hv⟩⟩ := h_struct
-  exact ⟨h_size, c, v, hc, hv⟩
-
-/-- **Lemma**: Parser success implies essential hypotheses are well-formed.
-
-When the parser inserts an essential hypothesis (ess=true), it validates that
-the formula has correct structure (nonempty with constant head).
-If parsing succeeds without error, all essential hypotheses satisfy well-formedness.
-
-**Proof**: By induction on parser operations. insertHyp stores formulas as-is
-for essential hypotheses, but they only reach the database after being validated
-in the parse tree. Parser success means all validation checks passed.
--/
-theorem parser_validates_essential_formulas :
-  ∀ (db : DB) (l : String) (f : Formula) (lbl : String),
-    -- If parsing succeeded
-    db.error? = none →
-    -- And there's an essential hypothesis in the database
-    db.find? l = some (.hyp true f lbl) →
-    -- Then it is well-formed
-    WellFormedFormula f := by
-  sorry
 
 /-- **Lemma**: Parser success implies no duplicate float variables.
 
