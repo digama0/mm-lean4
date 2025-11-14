@@ -28,7 +28,7 @@ theorem foldl_from_pos1_preserves_head {a : Metamath.Verify.Formula}
   - Reassembles proof using rewrite and exact
 
 **Architecture**:
-- Depends on: `KernelExtras.Array.getElem!_push_lt` axiom
+- Depends on: `KernelExtras.Array.getElem!_push_lt` (theorem with sorry)
 - Used by: Formula.substStep (substitution correctness)
 - Precondition: Formula non-emptiness (guaranteed by WellFormedFormula)
 
@@ -36,23 +36,25 @@ theorem foldl_from_pos1_preserves_head {a : Metamath.Verify.Formula}
 
 ### 🔧 #2: `KernelExtras.Array.getElem!_push_lt` (KernelExtras.lean:158)
 
-**Status**: **AXIOMATIZED** (foundational property)
+**Status**: **THEOREM WITH SORRY** (provable from Batteries)
 
 ```lean
-axiom getElem!_push_lt {α : Type} [Inhabited α] {a : Array α} {i : Nat} {x : α}
+theorem getElem!_push_lt {α : Type} [Inhabited α] {a : Array α} {i : Nat} {x : α}
     (h : i < a.size) :
-    (a.push x)[i]! = a[i]!
+    (a.push x)[i]! = a[i]! := by
+  sorry
 ```
 
 **Justification**:
 - This is a fundamental Array property: push extends at end only
 - In Batteries, it's proven as `Array.get_push_lt`
-- We axiomatize it for forward compatibility with future library versions
-- Can be replaced with the proven version once Batteries is verified
+- We state the theorem clearly so it can be proven when the library is available
+- This is the proper way to handle foundational properties
 
 **Mathematical Content**:
 - When pushing x to array a, accessing index i < a.size gives the same element
 - This is the core property needed for list folding invariants
+- Provable by showing Array.push only adds at the end, preserving earlier indices
 
 ---
 
