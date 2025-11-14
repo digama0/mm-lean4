@@ -1602,6 +1602,25 @@ theorem toSubstTyped_of_allM_true
     -- But h_eq proves it's some true, contradiction
     simp_all
 
+/-! ## Phase 3.5: Foundational Lemmas for AllM Integration (Documentation)
+
+Three bite-sized lemmas that would bridge allM validation with core properties.
+These are positioned to unblock Phase 5 soundness proofs.
+
+**Current Status**: Type issues require more careful formulation:
+1. toSubstTyped_var: Needs to bridge Option Formula ↔ Option Bool via checkFloat
+2. toSubstTyped_full: Lifts to full typed substitution
+3. checkHyp_wf_from_allM: Parser success → WellFormedFloat/Formula
+
+These lemmas are conceptually clear but require resolving the type of allM predicate
+(should operate on Option Bool, not Option Formula) or using a wrapper like checkFloat.
+
+**TODO for next session**:
+- Use checkFloat to convert Formula to Bool in allM predicate
+- Reference existing AllM.allM_true_of_mem for membership extraction
+- Pattern match on ess : Bool in checkHyp_wf_from_allM
+-/
+
 /-! ## Substitution Correspondence
 
 **Statement:** When the implementation successfully substitutes σ_impl into f_impl to get concl_impl,
