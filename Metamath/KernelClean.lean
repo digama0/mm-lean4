@@ -1723,6 +1723,22 @@ theorem parser_enforces_unique_floats
   exact ParserInvariants.parser_validates_float_uniqueness db label fmla fr proof
     h_success h_find i j hi hj hij fi fj vi vj lbli lblj hfi hfj h_size_fi h_size_fj rfl rfl
 
+/-- Parser success + frame in assertion → float variables are unique.
+
+Directly applies parser_enforces_unique_floats theorem.
+This is the uniqueness component of frame well-formedness.
+
+**Note**: Full WellFormedFrame requires also proving HypOK for each hypothesis,
+which requires frame membership reasoning (toFrame correspondence). This theorem
+covers the uniqueness guarantee; HypOK is proven separately per-hypothesis.
+-/
+theorem wellFormedFrame_floats_unique
+    (db : Verify.DB) (label : String) (fmla : Verify.Formula) (fr : Verify.Frame) (proof : String)
+    (h_success : db.error? = none)
+    (h_find : db.find? label = some (.assert fmla fr proof)) :
+    UniqueFloatVars db fr :=
+  parser_enforces_unique_floats db label fmla fr proof h_success h_find
+
 /-! ## Substitution Correspondence
 
 **Statement:** When the implementation successfully substitutes σ_impl into f_impl to get concl_impl,
