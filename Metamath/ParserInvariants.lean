@@ -191,7 +191,29 @@ theorem parser_validates_all_float_structures :
       -- Contradiction with assumption h : f.size ≠ 2!
       -- Master key establishes f came from successful path where size==2 was checked.
       -- This contradicts our assumption h : f.size ≠ 2.
-      sorry  -- TODO: Use master key witness to trace contradiction through feedTokens
+
+      -- Use the master key lemma to establish contradiction
+      -- The master key tells us: f came from a successful parse
+      -- Any float hypothesis only comes from feedTokens line 613
+      -- Line 613 is only reachable if line 611 check passes: arr.size == 2
+      -- This means f.size == 2 (since f = arr)
+      -- But we assumed h : f.size ≠ 2
+      -- Contradiction!
+      --
+      -- PROOF SKETCH (requires feedAll loop induction):
+      -- 1. By master key lemma feedAll_hyps_from_valid_inserts (ParserLoopInduction.lean:108):
+      --    feedAll succeeded (no error in final DB), so f came from valid insertHyp call
+      -- 2. In Verify.lean, insertHyp is only called from feedTokens (line 613)
+      -- 3. feedTokens line 611 checks: arr.size == 2 && arr[1]!.isVar
+      -- 4. This check is BEFORE insertHyp call, so if insertHyp reached, arr.size == 2
+      -- 5. Since f = arr (insertHyp takes array as formula), f.size == 2
+      -- 6. But assumption h says f.size ≠ 2, contradiction!
+      --
+      -- Formalizing requires showing that:
+      -- - f came from feedTokens line 613 insertHyp call (master key establishes this)
+      -- - That call was only reachable after line 611 check passed (needs code path analysis)
+      -- - Therefore f.size == 2
+      sorry -- Requires: Master key + feedAll loop induction to reach contradiction
 
   constructor
   · -- ∃ c, f[0]! = Sym.const c: line 607 check `!arr[0]!.isVar` enforces this
@@ -215,11 +237,19 @@ theorem parser_validates_all_float_structures :
       --
       -- Therefore f[0]! cannot be a var, so it must be a const.
       --
-      -- Formalizing this requires:
-      -- 1. Establishing that feedTokens is only called through parser state machine
-      -- 2. Using feed_stops_on_error to show mkError makes db.error? stick
-      -- 3. Parser loop induction showing f comes from feedTokens in $f case
-      sorry  -- Requires: feedTokens code path analysis + feed_stops_on_error
+      -- This is a contradiction: we have f[0]! = .var v from the pattern match,
+      -- but the parser code ensures this is impossible when parsing succeeds.
+      exfalso
+      -- The proof that this case is impossible:
+      -- f is a float hypothesis in DB with parsing success
+      -- By master key lemma, f came from feedTokens.float case (line 610-614)
+      -- Before that match, line 607 checks: arr.size > 0 && !arr[0]!.isVar
+      -- This guarantees arr[0] is a const
+      -- Since f = arr, we have f[0] is a const
+      -- But we just matched f[0]! = .var v, which contradicts this.
+      --
+      -- Formalizing requires master key lemma + feedTokens code path analysis
+      sorry  -- Requires: Master key + feedTokens code path analysis for contradiction
 
   · -- ∃ v, f[1]! = Sym.var v: line 611 check `arr[1]!.isVar` enforces this
     -- Since f = arr from insertHyp, and arr[1]!.isVar = true, arr[1]! is a var
@@ -242,11 +272,19 @@ theorem parser_validates_all_float_structures :
       -- This contradicts h_success: db.error? = none.
       -- Therefore f[1]! must be a var.
       --
-      -- Formalizing this requires:
-      -- 1. Parser loop induction over feedAll showing f came from line 613 insertHyp
-      -- 2. Using feed_stops_on_error to show mkError persists
-      -- 3. Establishing that non-float values don't enter DB for $f hypotheses
-      sorry  -- Requires: feedTokens float case analysis + feed_stops_on_error
+      -- This is a contradiction: we have f[1]! = .const c from the pattern match,
+      -- but the parser code ensures this is impossible when parsing succeeds.
+      exfalso
+      -- The proof that this case is impossible:
+      -- f is a float hypothesis in DB with parsing success
+      -- By master key lemma, f came from feedTokens.float case (line 610-614)
+      -- In that case, line 611 checks: arr.size == 2 && arr[1]!.isVar
+      -- This guarantees arr[1] is a var
+      -- Since f = arr, we have f[1] is a var
+      -- But we just matched f[1]! = .const c, which contradicts this.
+      --
+      -- Formalizing requires master key lemma + feedTokens code path analysis
+      sorry  -- Requires: Master key + feedTokens code path analysis for contradiction
 
 
 /-- **Lemma**: Parser success implies no duplicate float variables.
@@ -341,8 +379,19 @@ theorem parser_validates_float_uniqueness :
     --
     -- This requires parser loop induction over feedAll to show that
     -- frame.hyps grows by concatenating the sequence of insertHyp calls.
-    sorry  -- Requires: Parser loop induction (feedAll over byte sequence)
-           -- showing frame.hyps built sequentially via insertHyp_call_order
+    exfalso
+    -- The proof that vi = vj leads to contradiction:
+    -- By master key lemma, both fi and fj came from feedTokens.float inserts
+    -- By insertHyp_call_order, frame.hyps grows sequentially:
+    --   when j-th float was inserted, i-th was already there
+    -- insertHyp scans existing hyps (line 303-306) looking for duplicates:
+    --   it finds fr.hyps[i] = label of fi
+    --   checks: fi.size >= 2 [given] && fi[1]!.value == vj [by h_eq]
+    --   condition matches, so mkError is called
+    -- Once error set, feed_stops_on_error ensures it persists
+    -- So final db.error? ≠ none
+    -- But h_success says db.error? = none, contradiction!
+    sorry  -- Requires: insertHyp_call_order + master key + feed_stops_on_error composition
   · -- Case: vi ≠ vj (this is what we need to show)
     exact h_eq
 
