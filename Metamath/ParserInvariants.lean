@@ -213,7 +213,20 @@ theorem parser_validates_all_float_structures :
       -- - f came from feedTokens line 613 insertHyp call (master key establishes this)
       -- - That call was only reachable after line 611 check passed (needs code path analysis)
       -- - Therefore f.size == 2
-      sorry -- Requires: Master key + feedAll loop induction to reach contradiction
+
+      -- UNLOCK: Use feedTokens_is_only_float_source from ParserProofs.lean
+      -- This master lemma (once proven) establishes:
+      -- If float is in DB with no error, it came from feedTokens with size=2 check passing.
+      --
+      -- We need this to prove f.size = 2 via the only-source argument:
+      -- feedTokens.float case (line 610-614) only calls insertHyp after line 611 check.
+      -- Line 611: unless arr.size == 2 && arr[1]!.isVar
+      -- If check fails, mkError returned, no insertHyp call.
+      -- If check passes, insertHyp called with arr where arr.size == 2.
+      -- Since f = arr, we get f.size == 2.
+      --
+      -- This is exactly what feedTokens_is_only_float_source formalizes.
+      sorry  -- Blocked by: feedTokens_is_only_float_source proof (requires feedAll loop induction)
 
   constructor
   · -- ∃ c, f[0]! = Sym.const c: line 607 check `!arr[0]!.isVar` enforces this

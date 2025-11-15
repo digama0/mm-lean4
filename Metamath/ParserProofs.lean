@@ -1426,30 +1426,49 @@ This requires feedAll loop induction to show that only feedTokens line 613
 can add $f hypotheses to the database.
 -/
 
-/-- **Key Property**: If a float hypothesis entered the DB, its size must be 2.
+/-- **KEY LEMMA**: Floats can ONLY be inserted via feedTokens.float case (line 610-614)
 
-This lemma establishes the critical link between:
-1. Hypothesis in DB (found via db.find?)
-2. It came from feedTokens (line 613)
-3. Which requires arr.size == 2 (line 611 check)
-4. Therefore f.size = 2 (since f = arr from insertHyp)
+This lemma is the lynchpin that unlocks all Step 1 & 2 sorries in ParserInvariants.
 
-PROOF STRATEGY:
-The formal completion requires:
-1. Prove that the only way to add a $f hypothesis is via feedTokens line 613
-   - This needs feedAll loop induction showing line 613 is the only source
-2. Show that line 613 is only reachable if line 611 check (arr.size == 2) passes
-3. Apply error monotonicity: if check had failed, mkError would set db.error?
-4. Use feed_stops_on_error to show error would persist to final state
-5. Contradiction with h_success: db.error? = none
+**Statement**: If a float hypothesis (ess=false) is in the database and parsing succeeded,
+then it MUST have come from feedTokens.float case at line 613, which means:
+1. f.size == 2 (line 611 check)
+2. f[0] is a const (line 607 precondition)
+3. f[1] is a var (line 611 check)
 
-INTERMEDIATE STEP (what we can prove now):
-If we assume h_path: "the float f came from feedTokens line 613", then
-we can prove f.size = 2 by showing:
-  - Line 613 only reached if line 611 check passes
-  - Line 611 check requires arr.size == 2
-  - f = arr, so f.size == 2
+**Why this matters**:
+- feedTokens is the ONLY place in parser that calls insertHyp with ess=false
+- Line 613 is reached ONLY after lines 607 and 611 checks pass
+- Therefore floats with parsing success must satisfy those checks
+
+**Proof strategy**: Induction over feedAll execution showing:
+- Base case: Initial DB has no floats
+- Step case: feedAll can only add floats through feedTokens (lines 605-614)
+  - Line 607 check: arr.size > 0 && !arr[0]!.isVar
+  - Line 611 check: arr.size == 2 && arr[1]!.isVar (for .float case only)
+  - Only then insertHyp called with arr, so new float satisfies both checks
+- Conclusion: All floats in final DB satisfy size=2 and structure checks
+
+This is essentially proving that feedTokens is exhaustive - it's the ONLY source of floats.
 -/
+theorem feedTokens_is_only_float_source
+    (s_initial : ParserState) (base : Nat) (arr : ByteArray)
+    (h_success : (s_initial.feedAll base arr).db.error? = none)
+    (l : String) (f : Formula) (lbl : String)
+    (h_find : (s_initial.feedAll base arr).db.find? l = some (.hyp false f lbl)) :
+    -- If float is in DB with no error, it came from feedTokens and thus has:
+    f.size = 2 ∧
+    (∃ c : String, f[0]! = Sym.const c) ∧
+    (∃ v : String, f[1]! = Sym.var v) := by
+  -- This is the master proof that feeds all Step 1 & 2 cases.
+  -- Proof by induction on feedAll execution:
+  -- 1. Show initial state has no floats
+  -- 2. Show feedAll can only add floats through feedTokens.float case
+  -- 3. feedTokens.float case checks arr.size==2 and arr[1]!.isVar before insertHyp
+  -- 4. Therefore f in final DB must have passed those checks
+  sorry  -- This requires feedAll loop induction over parser state machine
+         -- Once this is proven, all Step 1 & 2 sorries follow immediately
+
 theorem float_from_feedTokens_has_size_2
   (db : DB) (pos : Pos) (l : String) (f : Formula) (lbl : String)
   (h_in_db : db.find? l = some (.hyp false f lbl))
@@ -1459,19 +1478,13 @@ theorem float_from_feedTokens_has_size_2
     ∃ (inserted : Verify.DB.insertHyp db pos l false arr = db),
     True) :
   f.size = 2 := by
-  -- This lemma says: IF we can prove that f came from feedTokens line 613,
-  -- THEN we can prove f.size = 2.
+  -- This lemma is simpler: given that f came from feedTokens line 613
+  -- with the size check passing, directly extract that f.size = 2.
   --
-  -- The key insight: feedTokens only calls insertHyp (line 613) after the check
-  -- at line 611 (arr.size == 2) passes. Since f = arr from insertHyp,
-  -- we have f.size == 2.
-  --
-  -- To use this lemma to complete the ParserInvariants proof:
-  -- 1. Use feedAll loop induction to show f came from feedTokens line 613
-  -- 2. Apply this lemma with the h_path witness
-  -- 3. Get f.size = 2 directly
-  --
-  -- This unblocks the parser_validates_all_float_structures proof.
-  sorry  -- This is a direct proof once h_path is established
+  -- This is just unwrapping the hypothesis h_path.
+  obtain ⟨arr, heq, _, _⟩ := h_path
+  rw [heq]
+  -- Now f is bound to arr, and we have the check that arr.size == 2
+  sorry  -- Should be direct once we have check_passed
 
 end Metamath.ParserProofs
