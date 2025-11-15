@@ -3131,9 +3131,16 @@ theorem verify_impl_sound
     -- This is because ill-formed databases would cause stepNormal to fail
     -- We use toFrame_some_of_wfFrame with this well-formedness
 
-    -- For now, assert the invariant:
+    -- Use the parser invariant: successful parse → well-formed frame
+    -- We need to establish that the DB came from a successful parse
+    -- The proof success (h_fold) indicates the database is valid
     have h_wf : WellFormedFrame db db.frame := by
-      sorry  -- Parser invariant: successful parse → well-formed frame
+      -- This would be proven from parser invariants:
+      -- parser_validates_all_float_structures + parser_validates_float_uniqueness
+      -- composed with parser_success_implies_unique_frame_floats
+      -- For now, mark as proof obligation requiring parser loop induction
+      sorry  -- TODO: Connect to parser_success_implies_unique_frame_floats
+             -- which would provide WellFormedFrame from successful parse
     exact toFrame_some_of_wfFrame db h_wf
   obtain ⟨fr, h_frame⟩ := h_frame
 
