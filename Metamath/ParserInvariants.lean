@@ -115,30 +115,56 @@ theorem parser_validates_all_float_structures :
     -- Since f entered DB via insertHyp called only after check passed, f.size = 2
     by_cases h : f.size = 2
     · exact h
-    · -- Case: f.size ≠ 2 (leads to contradiction)
+    · -- Case: f.size ≠ 2 (leads to contradiction via feed_stops_on_error)
       -- PROOF BY CONTRADICTION:
-      -- If f.size ≠ 2, then arr.size ≠ 2 (since f = arr from insertHyp call)
+      -- Assume f.size ≠ 2, and derive db.error? ≠ none, contradicting h_success.
       --
-      -- Operational semantics of feedTokens (Verify.lean:605-614):
-      -- When processing a token with k = .float:
-      --   line 611: unless arr.size == 2 && arr[1]!.isVar do
-      --   line 612:   return s.mkError pos "expected a constant and a variable"
-      --   line 613: let s := s.withDB fun db => db.insertHyp pos l false arr
+      -- Key code paths in feedTokens (Verify.lean:605-614):
+      -- Line 607: unless arr.size > 0 && !arr[0]!.isVar do return s.mkError
+      -- Line 611: unless arr.size == 2 && arr[1]!.isVar do return s.mkError
+      -- Line 613: let s := s.withDB fun db => db.insertHyp pos l false arr
       --
-      -- If arr.size ≠ 2, the check at line 611 would fail,
-      -- mkError would be called (line 612),
-      -- insertHyp would NEVER be called (line 613 only reached if check passes)
+      -- Critical insight: insertHyp is ONLY called after BOTH checks pass.
+      -- Since f = arr (from insertHyp at line 613), we have:
+      --   f.size = arr.size
+      --   f[0]!.isVar = false (from line 607 check)
+      --   f[1]!.isVar = true (from line 611 check)
       --
-      -- But h_find shows f IS in the database at label l.
-      -- The only way f gets into DB for a $f hypothesis is via insertHyp at line 613.
-      -- This is a contradiction!
-      -- Therefore f.size = 2 must be true.
+      -- Therefore: If f.size ≠ 2, then arr.size ≠ 2, so line 611 check fails,
+      -- mkError is called, and db.error? is set to non-none.
+      -- By feed_stops_on_error: once error is set, it persists.
+      -- This contradicts h_success: db.error? = none.
       --
-      -- Formalizing this requires:
-      -- 1. Parser loop induction over feedAll to track which hypotheses enter DB
-      -- 2. Showing that only line 613 insertHyp can add $f hypotheses
-      -- 3. Applying feed_stops_on_error to show mkError makes parsing fail
-      sorry  -- Requires: feedAll loop induction + feed_stops_on_error composition
+      -- PROOF STRUCTURE:
+      -- 1. Assume f.size ≠ 2
+      -- 2. Then arr.size ≠ 2 (since f = arr)
+      -- 3. This makes line 611 check fail
+      -- 4. mkError is called, making db.error? = some e
+      -- 5. feed_stops_on_error ensures error persists to final state
+      -- 6. So final db.error? ≠ none
+      -- 7. Contradicts h_success: db.error? = none
+      -- 8. Therefore f.size = 2
+      --
+      -- To complete this formally requires:
+      -- - Knowing that f came from feedTokens (not alternative parser path)
+      -- - This requires feedAll loop induction to verify line 613 was the path
+      -- - Then we can apply feed_stops_on_error composition with mkError
+
+      -- Proof attempt using available lemmas:
+      exfalso  -- Prove by contradiction: assume f.size ≠ 2 and derive False
+
+      -- We know h_success: db.error? = none
+      -- If we could show: the path that added f to DB set an error if f.size ≠ 2,
+      -- then we'd have db.error? ≠ none, contradicting h_success.
+
+      -- The blocker: proving f came from feedTokens line 613 requires
+      -- feedAll loop induction showing only that path adds $f hypotheses.
+      -- Without this, we can't complete the proof.
+
+      sorry  -- Honest sorry: Requires feedAll loop induction to establish that
+             -- the only way f enters DB is via insertHyp (called from feedTokens line 613)
+             -- which requires arr.size == 2. Once established, feed_stops_on_error
+             -- provides error monotonicity to derive contradiction.
 
   constructor
   · -- ∃ c, f[0]! = Sym.const c: line 607 check `!arr[0]!.isVar` enforces this
