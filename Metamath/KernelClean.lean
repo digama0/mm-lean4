@@ -3131,16 +3131,33 @@ theorem verify_impl_sound
     -- This is because ill-formed databases would cause stepNormal to fail
     -- We use toFrame_some_of_wfFrame with this well-formedness
 
-    -- Use the parser invariant: successful parse → well-formed frame
-    -- We need to establish that the DB came from a successful parse
-    -- The proof success (h_fold) indicates the database is valid
+    -- Use the parser invariants: successful parse → well-formed frame
+    -- We need to establish that the DB came from a successful parse.
+    -- The proof success (h_fold) indicates no parser errors occurred.
+    --
+    -- PROOF CHAIN (Step 4: Main Theorem Integration):
+    -- 1. h_fold : proof.foldlM ... = Except.ok pr_final
+    --    This means all stepNormal calls succeeded
+    -- 2. stepNormal calls DB operations that preserve parser success
+    -- 3. Parser success (no error set) ⟹ parser invariants hold:
+    --    - parser_validates_all_float_structures (float size=2, const-var)
+    --    - parser_validates_float_uniqueness (no duplicate float vars)
+    -- 4. Parser invariants compose to:
+    --    - wellFormedFrame_floats_unique (frame has unique floats)
+    --    - Essential hypothesis well-formedness (via other invariants)
+    -- 5. These compose to WellFormedFrame db db.frame
+    -- 6. WellFormedFrame ⟹ toFrame succeeds via toFrame_some_of_wfFrame
+
     have h_wf : WellFormedFrame db db.frame := by
-      -- This would be proven from parser invariants:
-      -- parser_validates_all_float_structures + parser_validates_float_uniqueness
-      -- composed with parser_success_implies_unique_frame_floats
-      -- For now, mark as proof obligation requiring parser loop induction
-      sorry  -- TODO: Connect to parser_success_implies_unique_frame_floats
-             -- which would provide WellFormedFrame from successful parse
+      -- Full proof requires:
+      -- 1. Show db.error? = none (from no parser errors in h_fold)
+      -- 2. Apply parser_validates_all_float_structures
+      -- 3. Apply parser_validates_float_uniqueness
+      -- 4. Compose via insertHyp_preserves_unique (induction on frame size)
+      -- 5. Get WellFormedFrame.floats_unique from composition
+      -- 6. Get WellFormedFrame.hyp_ok from other invariants
+      sorry  -- Proof obligation: Parser invariants must provide h_wf
+             -- once steps 1-3 above are fully formalized with induction
     exact toFrame_some_of_wfFrame db h_wf
   obtain ⟨fr, h_frame⟩ := h_frame
 
