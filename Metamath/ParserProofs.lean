@@ -1450,24 +1450,53 @@ then it MUST have come from feedTokens.float case at line 613, which means:
 - Conclusion: All floats in final DB satisfy size=2 and structure checks
 
 This is essentially proving that feedTokens is exhaustive - it's the ONLY source of floats.
+
+## Exhaustiveness Lemma: Float Sources
+
+The key insight from Grok: Float hypotheses (ess=false) can ONLY be inserted via feedTokens.float
+branch (line 610-614), because:
+
+1. **Only float branch** calls `insertHyp pos l false arr` (ess=false)
+2. **ess branch** calls `insertHyp pos l true arr` (ess=true, not float)
+3. **ax branch** calls `insertAxiom` (not hyp at all)
+4. **thm branch** calls `resumeThm` or sets error (no hyp insert)
+
+So if a float hyp is in the DB after success, it MUST have come from float branch.
+And float branch only executes insertHyp AFTER line 611 check: `arr.size == 2 && arr[1]!.isVar`
+
+Therefore: any float in DB has size=2, first elem const, second elem var.
 -/
+
 theorem feedTokens_is_only_float_source
     (s_initial : ParserState) (base : Nat) (arr : ByteArray)
     (h_success : (s_initial.feedAll base arr).db.error? = none)
     (l : String) (f : Formula) (lbl : String)
     (h_find : (s_initial.feedAll base arr).db.find? l = some (.hyp false f lbl)) :
-    -- If float is in DB with no error, it came from feedTokens and thus has:
+    -- If float is in DB with no error, it came from feedTokens.float and thus has:
     f.size = 2 ∧
     (∃ c : String, f[0]! = Sym.const c) ∧
     (∃ v : String, f[1]! = Sym.var v) := by
-  -- This is the master proof that feeds all Step 1 & 2 cases.
-  -- Proof by induction on feedAll execution:
-  -- 1. Show initial state has no floats
-  -- 2. Show feedAll can only add floats through feedTokens.float case
-  -- 3. feedTokens.float case checks arr.size==2 and arr[1]!.isVar before insertHyp
-  -- 4. Therefore f in final DB must have passed those checks
-  sorry  -- This requires feedAll loop induction over parser state machine
-         -- Once this is proven, all Step 1 & 2 sorries follow immediately
+  -- The proof: Code inspection of feedTokens shows it's structured as:
+  -- 1. Line 607-608: unless precondition → mkError
+  -- 2. Line 609: match k (the token kind)
+  -- 3. Line 610-614: .float case → ONLY place with insertHyp ess=false
+  --    - Line 611: unless size==2 && [1].isVar → mkError
+  --    - Line 613: insertHyp called
+  -- 4. Other cases (.ess, .ax, .thm) don't have ess=false inserts
+  --
+  -- Induction strategy:
+  -- - feedAll processes bytes via feed
+  -- - feed processes state machine calling feedTokens for each token
+  -- - Only feedTokens.float branch (after line 611 check) inserts float hyps
+  -- - Therefore f must satisfy those checks
+  --
+  -- The rigorous approach: Induct on feed→feedAll recursion,
+  -- unfold feedTokens, match on token kind k, and show only .float
+  -- branch has the insertHyp call we're looking for.
+  sorry  -- Honest sorry: Requires feedAll loop induction + unfolding feedTokens
+         -- structure + case analysis on token kind. The strategy is clear,
+         -- but the mechanical proof needs careful handling of the state machine.
+         -- Estimated: 2-3 hours to fully formalize.
 
 theorem float_from_feedTokens_has_size_2
   (db : DB) (pos : Pos) (l : String) (f : Formula) (lbl : String)
