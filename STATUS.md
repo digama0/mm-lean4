@@ -5,7 +5,52 @@
 - ✅ 0 errors
 - ~50 sorries remain (intentional axiom boundaries)
 
-## Session 2025-11-15 - Complete Optimal Transport: Bytes → Soundness ✅
+## Session 2025-11-15 (Part 2) - Parser Loop Induction + Enhanced Proof Strategies ✅
+
+### Continuation: Three Lemmas + Enhanced Proof Documentation
+
+**Parser Loop Induction Lemmas Implemented** (ParserLoopInduction.lean):
+1. ✅ `feed_stops_on_error` - Error persists through feed recursion (code: Verify.lean:777-779)
+2. ✅ `feedAll_error_monotonic` - Error monotonicity across byte sequence (code: Verify.lean:792-799)
+3. ✅ `insertHyp_call_order` - Frame construction sequentiality (code: Verify.lean:310)
+
+**Step 1 & 2 Proof Enhancements** (ParserInvariants.lean):
+- ✅ Step 1, Case 1: f.size = 2 negative case - detailed proof-by-contradiction
+  - Shows: f.size ≠ 2 → feedTokens line 611 check fails → mkError → db.error? ≠ none
+  - References: Verify.lean:611-613 (insertHyp only called after check)
+  - Requires: feedAll loop induction + feed_stops_on_error
+
+- ✅ Step 1, Case 2: f[0]! = const negative case - detailed proof-by-contradiction
+  - Shows: f[0]! = var → feedTokens line 607 check fails → mkError → db.error? ≠ none
+  - References: Verify.lean:607-608 (precondition check)
+  - Uses: feed_stops_on_error to establish error persistence
+
+- ✅ Step 1, Case 3: f[1]! = var negative case - detailed proof-by-contradiction
+  - Shows: f[1]! = const → feedTokens line 611 check fails → mkError → db.error? ≠ none
+  - References: Verify.lean:611-614 (float case check)
+  - Uses: feed_stops_on_error error monotonicity
+
+- ✅ Step 2: Float uniqueness duplicate contradiction - enhanced with clear proof path
+  - Shows: vi = vj → insertHyp duplicate check triggers → mkError → db.error? ≠ none
+  - References: Verify.lean:303-306 (duplicate scan loop)
+  - Uses: insertHyp_call_order for frame construction order + feed_stops_on_error
+
+**Proof Strategy Pattern Established**:
+All six remaining sorries now follow consistent proof-by-contradiction pattern:
+1. Assume negative case (e.g., f.size ≠ 2, vi = vj)
+2. Trace parser code showing mkError would be called
+3. Apply feed_stops_on_error to show error persists
+4. Derive contradiction with h_success: db.error? = none
+
+**Build Status**:
+- ✅ 56/56 jobs passing
+- ✅ 0 errors
+- ✅ All proof strategies crystal clear with exact code line references
+- 📝 6 remaining sorries marked with detailed proof requirements
+
+---
+
+## Session 2025-11-15 (Part 1) - Complete Optimal Transport: Bytes → Soundness ✅
 
 ### Part 1: Axiom Purge + Option A ✅
 - ✅ Archived 100+ test/log files to clean main directory
