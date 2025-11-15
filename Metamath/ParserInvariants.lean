@@ -40,6 +40,7 @@ This approach:
 import Metamath.Verify
 import Metamath.Spec
 import Metamath.WellFormedness
+import Metamath.ParserLoopInduction
 
 namespace Metamath.ParserInvariants
 
@@ -161,10 +162,31 @@ theorem parser_validates_all_float_structures :
       -- feedAll loop induction showing only that path adds $f hypotheses.
       -- Without this, we can't complete the proof.
 
-      sorry  -- Honest sorry: Requires feedAll loop induction to establish that
-             -- the only way f enters DB is via insertHyp (called from feedTokens line 613)
-             -- which requires arr.size == 2. Once established, feed_stops_on_error
-             -- provides error monotonicity to derive contradiction.
+      -- PROOF via feedAll_hyps_from_valid_inserts master key lemma:
+      -- The master key lemma (ParserLoopInduction.lean) establishes that
+      -- if feedAll succeeds with no error, every hypothesis in the DB
+      -- came from a valid feedTokens/insertHyp sequence.
+      --
+      -- Therefore:
+      -- 1. Use master key lemma with h_success and h_find
+      -- 2. Get witness: f came from feedTokens line 613
+      -- 3. Line 613 only reachable if line 611 check (arr.size == 2) passes
+      -- 4. So f.size == 2
+      -- 5. This contradicts our assumption h : f.size ≠ 2
+      -- 6. Therefore f.size = 2 must be true
+
+      -- The master key lemma feedAll_hyps_from_valid_inserts (ParserLoopInduction.lean)
+      -- will provide the witness when proven. For now, we document the complete path:
+      --
+      -- Once feedAll_hyps_from_valid_inserts is proven in ParserLoopInduction.lean,
+      -- this proof completes via:
+      --   rcases feedAll_hyps_from_valid_inserts h_success l h_find
+      --     with ⟨inserted_path, h_find_path, h_success_path⟩
+      --   exact float_from_feedTokens_has_size_2 db l f lbl h_find
+      --           ⟨_arr, rfl, ⟨h_size_check, h_var_check⟩, ⟨inserted_path, h_eq⟩, trivial⟩
+      --
+      -- This proof structure is ready; just waiting for feedAll induction.
+      sorry  -- Master key lemma needed: feedAll_hyps_from_valid_inserts
 
   constructor
   · -- ∃ c, f[0]! = Sym.const c: line 607 check `!arr[0]!.isVar` enforces this
