@@ -115,11 +115,30 @@ theorem parser_validates_all_float_structures :
     -- Since f entered DB via insertHyp called only after check passed, f.size = 2
     by_cases h : f.size = 2
     · exact h
-    · -- If f.size ≠ 2, then arr.size ≠ 2, so line 611 check would fail
-      -- mkError would be called, making db.error? ≠ none
-      -- This contradicts h_success
-      -- (Full proof requires parser loop induction showing all code paths preserve size)
-      sorry  -- Code inspection complete; formal proof requires parser induction
+    · -- Case: f.size ≠ 2 (leads to contradiction)
+      -- PROOF BY CONTRADICTION:
+      -- If f.size ≠ 2, then arr.size ≠ 2 (since f = arr from insertHyp call)
+      --
+      -- Operational semantics of feedTokens (Verify.lean:605-614):
+      -- When processing a token with k = .float:
+      --   line 611: unless arr.size == 2 && arr[1]!.isVar do
+      --   line 612:   return s.mkError pos "expected a constant and a variable"
+      --   line 613: let s := s.withDB fun db => db.insertHyp pos l false arr
+      --
+      -- If arr.size ≠ 2, the check at line 611 would fail,
+      -- mkError would be called (line 612),
+      -- insertHyp would NEVER be called (line 613 only reached if check passes)
+      --
+      -- But h_find shows f IS in the database at label l.
+      -- The only way f gets into DB for a $f hypothesis is via insertHyp at line 613.
+      -- This is a contradiction!
+      -- Therefore f.size = 2 must be true.
+      --
+      -- Formalizing this requires:
+      -- 1. Parser loop induction over feedAll to track which hypotheses enter DB
+      -- 2. Showing that only line 613 insertHyp can add $f hypotheses
+      -- 3. Applying feed_stops_on_error to show mkError makes parsing fail
+      sorry  -- Requires: feedAll loop induction + feed_stops_on_error composition
 
   constructor
   · -- ∃ c, f[0]! = Sym.const c: line 607 check `!arr[0]!.isVar` enforces this
@@ -127,18 +146,54 @@ theorem parser_validates_all_float_structures :
     match f[0]! with
     | .const c => exact ⟨c, rfl⟩
     | .var v =>
-      -- If f[0]! = var, the precondition check at line 607 would fail
-      -- mkError would be called, contradicting h_success
-      sorry  -- Code inspection complete; formal proof requires tracing through parser
+      -- Case: f[0]! = var (leads to contradiction)
+      -- PROOF BY CONTRADICTION:
+      -- Operational semantics of feedTokens (Verify.lean:605-608):
+      -- line 607: unless arr.size > 0 && !arr[0]!.isVar do
+      -- line 608:   return s.mkError pos "first symbol is not a constant"
+      --
+      -- If arr[0]!.isVar = true (i.e., f[0]! = var),
+      -- then the precondition at line 607 would fail (the check is !arr[0]!.isVar),
+      -- mkError would be called (line 608),
+      -- and the entire feedTokens function would return early with error set.
+      --
+      -- Once error is set, feed_stops_on_error ensures it persists.
+      -- This would make db.error? ≠ none, contradicting h_success.
+      --
+      -- Therefore f[0]! cannot be a var, so it must be a const.
+      --
+      -- Formalizing this requires:
+      -- 1. Establishing that feedTokens is only called through parser state machine
+      -- 2. Using feed_stops_on_error to show mkError makes db.error? stick
+      -- 3. Parser loop induction showing f comes from feedTokens in $f case
+      sorry  -- Requires: feedTokens code path analysis + feed_stops_on_error
 
   · -- ∃ v, f[1]! = Sym.var v: line 611 check `arr[1]!.isVar` enforces this
     -- Since f = arr from insertHyp, and arr[1]!.isVar = true, arr[1]! is a var
     match f[1]! with
     | .var v => exact ⟨v, rfl⟩
     | .const c =>
-      -- If f[1]! = const, the check at line 611 would fail
-      -- mkError would be called, contradicting h_success
-      sorry  -- Code inspection complete; formal proof requires parser induction
+      -- Case: f[1]! = const (leads to contradiction)
+      -- PROOF BY CONTRADICTION:
+      -- Operational semantics of feedTokens (Verify.lean:610-614):
+      -- When token kind is .float:
+      --   line 611: unless arr.size == 2 && arr[1]!.isVar do
+      -- line 612:   return s.mkError pos "expected a constant and a variable"
+      --
+      -- If arr[1]!.isVar = false (i.e., arr[1]! is a const, so f[1]! = const),
+      -- then the check at line 611 would fail (the check is arr[1]!.isVar),
+      -- mkError would be called (line 612),
+      -- insertHyp would NOT be called,
+      -- and db.error? would be set to some value (non-none).
+      --
+      -- This contradicts h_success: db.error? = none.
+      -- Therefore f[1]! must be a var.
+      --
+      -- Formalizing this requires:
+      -- 1. Parser loop induction over feedAll showing f came from line 613 insertHyp
+      -- 2. Using feed_stops_on_error to show mkError persists
+      -- 3. Establishing that non-float values don't enter DB for $f hypotheses
+      sorry  -- Requires: feedTokens float case analysis + feed_stops_on_error
 
 
 /-- **Lemma**: Parser success implies no duplicate float variables.
@@ -201,11 +256,40 @@ theorem parser_validates_float_uniqueness :
   -- Proof by contradiction: assume vi = vj and derive h_success = false
   by_cases h_eq : vi = vj
   · -- Case: vi = vj (assumption leads to contradiction)
-    -- When insertHyp was called for the second float, the first was already in frame
-    -- The duplicate check would have matched and called mkError
-    -- This contradicts h_success
-    sorry  -- Formal completion requires parser loop induction to establish the order
-           -- of insertHyp calls and show that the duplicate check would have fired
+    -- PROOF BY CONTRADICTION:
+    -- Assume vi = vj. We'll show this makes db.error? ≠ none, contradicting h_success.
+    --
+    -- Key insight from insertHyp operational semantics (Verify.lean:303-306):
+    -- When insertHyp is called to insert float fj at position j:
+    --   for h in db.frame.hyps do                          (scan existing hyps)
+    --     if let some (.hyp false prevF _) := db.find? h then
+    --       if prevF.size >= 2 && prevF[1]!.value == v then
+    --         db := db.mkError ...                          (error if duplicate)
+    --
+    -- Since the frame is built sequentially (insertHyp_call_order: each call adds one label),
+    -- when fj was inserted:
+    -- - fr.hyps[i] was already in the frame (from previous insertHyp call)
+    -- - insertHyp scans all existing hyps, finds fr.hyps[i]
+    -- - db.find? fr.hyps[i] = some (.hyp false fi lbli) [given by hfi]
+    -- - fi.size >= 2 [given by hsize_i]
+    -- - fi[1]!.value extracts to vi [by h_extract_i]
+    -- - vi = vj [assumption h_eq]
+    -- - So the condition "prevF[1]!.value == v" would match with v = vj
+    -- - Therefore mkError is called, setting db.error? ≠ none
+    --
+    -- This contradicts h_success: db.error? = none
+    -- Therefore our assumption h_eq must be false, i.e., vi ≠ vj
+
+    -- The formal proof requires establishing:
+    -- 1. i < j (order of insertion, from frame.hyps construction)
+    -- 2. When j-th float was inserted, i-th was already in frame
+    -- 3. insertHyp's loop would encounter fr.hyps[i] before fr.hyps[j]
+    -- 4. The duplicate check would match and call mkError
+    --
+    -- This requires parser loop induction over feedAll to show that
+    -- frame.hyps grows by concatenating the sequence of insertHyp calls.
+    sorry  -- Requires: Parser loop induction (feedAll over byte sequence)
+           -- showing frame.hyps built sequentially via insertHyp_call_order
   · -- Case: vi ≠ vj (this is what we need to show)
     exact h_eq
 
