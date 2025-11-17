@@ -254,6 +254,78 @@ theorem getElem!_idxOf
   -- xs[i] is definitionally xs.get ⟨i, proof⟩
   exact hget
 
+/-! ### forIn bridges (for loop equivalence proofs)
+
+Note: Lean 4.24.0 stdlib provides all the lemmas needed for proving that
+imperative `for...in` loops equal functional recursion. We use those directly.
+
+**Available stdlib lemmas:**
+
+From Init/Data/List/Monadic.lean:
+- `List.forIn_yield_eq_foldl`: forIn (yield-only) equals foldl for Lists
+- `List.idRun_forIn_yield_eq_foldl`: Id.run version
+
+From Init/Data/Array/Lemmas.lean:
+- `Array.forIn_toList`: forIn over Array equals forIn over toList
+- `Array.forIn_yield_eq_foldlM`: Array forIn (yield-only) equals foldlM
+
+**Proof pattern for loop = recursion equivalence:**
+1. Use `Array.forIn_toList` to convert Array iteration to List iteration
+2. Use `List.forIn_yield_eq_foldl` to show forIn = foldl
+3. Prove recursive function = foldl by induction
+4. Conclude both sides equal by transitivity
+-/
+
+/-! ### Additional forIn bridges for floatCheckLoop proof -/
+
+namespace ArrayListExt
+
+-- Corrected for Lean 4's forIn syntax
+
+namespace List
+
+/-- In the `Id` monad, a yield-only `forIn` over a list is exactly `foldl`. -/
+theorem idRun_forIn_yield_eq_foldl
+    {α β} (xs : List α) (init : β) (step : β → α → β) :
+    Id.run (forIn xs init (fun a s => pure (ForInStep.yield (step s a)))) =
+      xs.foldl step init := by
+  -- Simple structural induction on `xs`.
+  revert init
+  induction xs with
+  | nil =>
+      intro init
+      simp [forIn, ForIn.forIn, List.forIn]
+  | cons a xs ih =>
+      intro init
+      simp [forIn, ForIn.forIn, List.forIn]
+      exact ih (step init a)
+
+end List
+
+namespace Array
+
+/-- In `Id`, `forIn` over an array equals `forIn` over `toList` with the same body. -/
+theorem idRun_forIn_toList
+    {α β} (arr : Array α) (init : β)
+    (body : α → β → Id (ForInStep β)) :
+    Id.run (forIn arr init body) =
+      Id.run (forIn (arr.toList) init body) := by
+  -- Array.forIn is defined in terms of List.forIn
+  rfl
+
+/-- In `Id`, a yield-only `forIn` over an array is `foldl` over `toList`. -/
+theorem idRun_forIn_yield_eq_foldl
+    {α β} (arr : Array α) (init : β) (step : β → α → β) :
+    Id.run (forIn arr init (fun a s => pure (ForInStep.yield (step s a)))) =
+      (arr.toList).foldl step init := by
+  -- Convert Array.forIn to List.forIn, then apply the List lemma.
+  rw [idRun_forIn_toList]
+  exact List.idRun_forIn_yield_eq_foldl (arr.toList) init step
+
+end Array
+
+end ArrayListExt
+
 end List
 
 /-! ### Namespaced List.mapM axioms

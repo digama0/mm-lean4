@@ -27,7 +27,8 @@ lean_lib Metamath where
   -- HashMapLemmas: Infrastructure for HashMap reasoning (eliminates axioms!)
   -- ParserLoopInduction: Infrastructure for feed loop induction
   -- DBCaseAnalysis: Helpers for complex case analysis in DB operations
-  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis]
+  -- CounterexampleInsertError: Proves insert with error can modify DB
+  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError]
 
 @[default_target]
 lean_lib MetamathExperimental where

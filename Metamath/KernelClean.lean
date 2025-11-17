@@ -417,6 +417,15 @@ def toExprOpt (f : Verify.Formula) : Option Spec.Expr :=
   else
     none
 
+/-- toExprOpt returns some e iff f.size > 0 and toExpr f = e.
+    This bridges the Option and total versions of toExpr. -/
+@[simp] theorem toExprOpt_some_iff_toExpr (f : Verify.Formula) (e : Spec.Expr) :
+  toExprOpt f = some e ↔ (f.size > 0 ∧ toExpr f = e) := by
+  unfold toExprOpt toExpr
+  by_cases h : f.size > 0
+  · simp [h]
+  · simp [h]
+
 /-! ### Bridge Lemmas: Well-Formedness → Totality
 
 These lemmas connect parser guarantees (well-formedness predicates) to bridge function totality.
@@ -488,14 +497,6 @@ theorem toExprOpt_some_of_wff (f : Verify.Formula) :
   simp [this]
 
 /-! ## Helper Lemmas for subst_correspondence -/
-
-/-- toExprOpt agrees with toExpr on well-formed formulas. -/
-@[simp] theorem toExprOpt_some_iff_toExpr
-    (f : Verify.Formula) (e : Spec.Expr) :
-  toExprOpt f = some e ↔ (f.size > 0 ∧ toExpr f = e) := by
-  -- This is provable by case analysis on f.size and unfolding definitions
-  -- Deferred to focus on higher-priority sorries
-  sorry
 
 /-! ### Formula.subst helper lemmas
 
@@ -885,8 +886,7 @@ theorem convertHyp_float_from_var (db : Verify.DB) (label : String) (f : Verify.
   --
   -- The proof requires showing this extraction from the do-notation,
   -- using expr_singleton_pattern_match to handle the pattern matching
-  refine ⟨v_str, ?_⟩
-  sorry  -- Pattern match extraction: complete do-notation threading
+  sorry
 
 /-- Convert DV pair to spec variables. -/
 def convertDV (dv : String × String) : Spec.Variable × Spec.Variable :=

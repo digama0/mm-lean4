@@ -23,18 +23,29 @@ We use Batteries' HashMap lemmas where available.
 -/
 
 /-- After insert, we can find the inserted value -/
-theorem HashMap.find?_insert_self {α β} [BEq α] [Hashable α] [LawfulBEq α]
+theorem HashMap.find?_insert_self {α β} [BEq α] [Hashable α] [EquivBEq α] [LawfulHashable α]
     (m : HashMap α β) (k : α) (v : β) :
     (m.insert k v)[k]? = some v := by
-  -- HashMap.getElem? is the underlying operation
-  sorry -- TODO: Need to prove from HashMap implementation
+  -- Batteries.HashMap wraps Std.HashMap
+  -- The Std.HashMap theorem directly applies
+  exact Std.HashMap.getElem?_insert_self
 
 /-- Insert doesn't affect unrelated keys -/
-theorem HashMap.find?_insert_other {α β} [BEq α] [Hashable α] [LawfulBEq α]
+theorem HashMap.find?_insert_other {α β} [BEq α] [Hashable α] [LawfulBEq α] [LawfulHashable α]
     (m : HashMap α β) (k k' : α) (v : β) :
     k ≠ k' → (m.insert k v)[k']? = m[k']? := by
   intro h_ne
-  sorry -- TODO: Need to prove from HashMap implementation
+  -- Use Std.HashMap.getElem?_insert which gives us the conditional
+  rw [Std.HashMap.getElem?_insert]
+  -- Goal: if k == k' then some v else m[k']? = m[k']?
+  -- We need to show the if evaluates to the else branch
+  -- With LawfulBEq, we can use beq_iff_eq
+  have h_beq_false : ¬((k == k') = true) := by
+    intro h
+    -- beq_iff_eq gives us: (k == k') = true ↔ k = k'
+    rw [beq_iff_eq] at h
+    exact h_ne h
+  simp [h_beq_false]
 
 /-- String has LawfulBEq (needed for HashMap proofs) -/
 instance : LawfulBEq String where
