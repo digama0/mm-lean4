@@ -8,6 +8,7 @@ This document captures practical patterns and techniques learned while working o
 - [HashMap Proofs](#hashmap-proofs)
 - [Case Analysis](#case-analysis)
 - [Do-Notation and ForIn Loop Proofs](#do-notation-and-forin-loop-proofs)
+- [Array Indexing Equivalence](#array-indexing-equivalence)
 
 ---
 
@@ -542,6 +543,68 @@ This pattern successfully handles the complexity of do-notation desugaring by:
 - Avoiding direct manipulation of `pure PUnit.unit` noise
 - Working with semantic equality rather than syntactic matching
 - Using foldl as a common meeting point between imperative and functional styles
+
+---
+
+## Array Indexing Equivalence
+
+### Problem: Bridging `arr[i]` and `arr[i]!`
+
+Lean 4 has two array indexing notations that are **not** definitionally equal:
+- `arr[i]` (or `arr[i]'h`) - requires proof `h : i < arr.size` at compile time
+- `arr[i]!` - panic-safe indexing using `getBang`, panics at runtime if out of bounds
+
+**Common Issue**: Proofs about `HypOK db arr[i]` cannot directly apply to goals about `arr[i]!`.
+
+### Pattern: Using `getElem!_pos`
+
+The Lean stdlib theorem `getElem!_pos` bridges these notations:
+```lean
+theorem getElem!_pos {α} [Inhabited α] (arr : Array α) (i : Nat) (h : i < arr.size) :
+  arr[i]! = arr[i]
+```
+
+**Usage Pattern**:
+```lean
+-- Given:
+--   hi : i < db.frame.hyps.size
+--   h_find : db.find? db.frame.hyps[i] = some (...)
+-- Need: db.find? db.frame.hyps[i]! = some (...)
+
+-- Step 1: Prove indexing equivalence
+have h_bang : db.frame.hyps[i]! = db.frame.hyps[i] := by
+  simp [getElem!_pos, hi]
+
+-- Step 2: Rewrite to get desired form
+have h_find' : db.find? db.frame.hyps[i]! = some (...) := by
+  rw [h_bang]
+  exact h_find
+
+-- Step 3: Use h_find' in the rest of the proof
+```
+
+**Key Points**:
+- Use `simp [getElem!_pos, hi]` rather than calling `getElem!_pos hi` directly
+- The theorem requires the element type to be `Inhabited`
+- For Lists, use the analogous `List.getElem!_pos` theorem
+
+**Example** (from `toFrame_some_of_wfFrame` in KernelClean.lean:1073):
+```lean
+have h_ok := h_hyps i hi  -- HypOK db db.frame.hyps[i]
+unfold HypOK at h_ok
+obtain ⟨ess, f, lbl, h_find, ...⟩ := h_ok
+-- h_find : db.find? db.frame.hyps[i] = some (.hyp ess f lbl)
+
+-- Bridge to getBang notation
+have h_bang : db.frame.hyps[i]! = db.frame.hyps[i] := by
+  simp [getElem!_pos, hi]
+
+have h_find' : db.find? db.frame.hyps[i]! = some (.hyp ess f lbl) := by
+  rw [h_bang]
+  exact h_find
+
+-- Now h_find' can be used with convertHyp which expects db.frame.hyps[i]!
+```
 
 ---
 
