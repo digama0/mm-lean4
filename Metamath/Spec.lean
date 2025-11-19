@@ -186,7 +186,7 @@ inductive ProofValid (Γ : Database) : Frame → List Expr → List ProofStep �
       ∀ needed : List Expr,
       needed = fr'.mand.map (fun h => match h with
         | Hyp.essential e => applySubst fr'.vars σ e
-        | Hyp.floating c v => σ v) →
+        | Hyp.floating _ v => σ v) →
       ∀ remaining : List Expr,
       stack = needed.reverse ++ remaining →
       ProofValid Γ fr (applySubst fr'.vars σ e :: remaining) (ProofStep.useAssertion l σ :: steps)

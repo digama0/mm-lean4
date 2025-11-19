@@ -375,17 +375,13 @@ theorem foldl_eq_list_foldl_drop
     have h_extract :
         ((arr.extract start arr.size).toList) =
           arr.toList.extract start arr.size := by
-      simpa using
-        (Array.toList_extract (xs := arr) (start := start) (stop := arr.size))
+      exact Array.toList_extract (xs := arr) (start := start) (stop := arr.size)
     have h_stop :
         arr.toList.extract start arr.size = arr.toList.extract start := by
-      simpa [Array.length_toList] using
-        (by rfl :
-          arr.toList.extract start arr.toList.length = arr.toList.extract start)
+      simp [Array.length_toList]
     have h_drop' :
         arr.toList.extract start = arr.toList.drop start := by
-      simpa using
-        (List.drop_eq_extract (l := arr.toList) (k := start)).symm
+      exact (List.drop_eq_extract (l := arr.toList) (k := start)).symm
     exact h_extract.trans (h_stop.trans h_drop')
   have h_list_drop :
       ((arr.extract start arr.size).toList).foldl f init =
@@ -430,7 +426,7 @@ private theorem drop_eq_head_tail'
       | nil => cases h
       | cons hd tl =>
         have : i < tl.length := Nat.lt_of_succ_lt_succ h
-        simpa using ih tl this
+        exact ih tl this
 
 /-- Option `bind` deconstruction: a convenience fact. -/
 @[simp] private theorem Option.bind_eq_some {α β} {x : Option α} {f : α → Option β} {y : β} :
@@ -676,7 +672,7 @@ theorem getElem!_toList {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.
 For any valid index i, a.toList.get gives the same element as a[i].
 This is definitional equality.
 -/
-theorem toList_get {α} (a : Array α) (i : Nat) (h : i < a.size) :
+theorem toList_get {α} (a : Array α) (i : Nat) (_ : i < a.size) :
   ∀ (h_len : i < a.toList.length), a.toList.get ⟨i, h_len⟩ = a[i] := by
   intro h_len
   rfl
@@ -778,7 +774,7 @@ for the common case of extract 0 n (take pattern).
 
 This operation is common in stack manipulation (pop k elements).
 -/
-theorem toList_extract_dropLastN {α} (a : Array α) (k : Nat) (h : k ≤ a.size) :
+theorem toList_extract_dropLastN {α} (a : Array α) (k : Nat) (_ : k ≤ a.size) :
   (a.extract 0 (a.size - k)).toList = a.toList.dropLastN k := by
   -- Use toList_extract_take: (a.extract 0 n).toList = a.toList.take n
   rw [toList_extract_take]
@@ -804,7 +800,7 @@ Window operation: extract a slice [off, off+len) and map a function over it.
 This is equivalent to dropping off elements, taking len elements, then mapping.
 -/
 theorem window_toList_map {α β} (a : Array α) (off len : Nat)
-    (f : α → β) (h : off + len ≤ a.size) :
+    (f : α → β) (_ : off + len ≤ a.size) :
   (a.extract off (off + len)).toList.map f =
   ((a.toList.drop off).take len).map f := by
   -- Use toList_extract to convert extract to List.extract

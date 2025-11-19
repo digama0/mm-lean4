@@ -452,7 +452,7 @@ theorem DBExecution.preserves_wellformedness {db₁ db₂ : DB} :
 /-- Strong induction principle for DB construction -/
 theorem db_construction_induction
     {P : DB → Prop}
-    (h_empty : P (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+    (h_empty : P (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                      (interrupt := false) (error? := none) (permissive := false)))
     (h_insert : ∀ db pos label obj,
       db.error = false → P db →
@@ -464,7 +464,7 @@ theorem db_construction_induction
       WF.WellFormedDB db →
       (db.insertHyp pos label ess f).error = false →
       P (db.insertHyp pos label ess f)) :
-    ∀ db, DBExecution (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+    ∀ db, DBExecution (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                             (interrupt := false) (error? := none) (permissive := false)) db →
       db.error = false → P db := by
   intro db h_exec h_no_err
@@ -482,7 +482,7 @@ section ParserLoopWellFoundedness
 
 /-- The feed loop decreases on (arr.size - i) -/
 def feedMeasure (arr : ByteArray) (i : Nat) : Nat :=
-  if h : i < arr.size then arr.size - i else 0
+  if _ : i < arr.size then arr.size - i else 0
 
 /-- Feed loop well-founded induction principle -/
 theorem feed_wellfounded_induction
@@ -613,7 +613,7 @@ theorem parser_construction_wellformed
   (bytes : ByteArray)
   (initial_state : ParserState) :
   -- Start with empty/well-formed state
-  initial_state.db = .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+  initial_state.db = .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                           (interrupt := false) (error? := none) (permissive := false) →
   -- Parse succeeds
   let final_state := initial_state.feedAll 0 bytes
@@ -630,7 +630,7 @@ theorem parser_construction_wellformed
   -- 4. Therefore final DB is well-formed
 
   -- Establish initial WF
-  have h_init_wf : WellFormedDB (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+  have h_init_wf : WellFormedDB (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                                       (interrupt := false) (error? := none) (permissive := false)) := by
     unfold WellFormedDB WellFormedFrame
     sorry -- TODO: Prove empty frame is well-formed
@@ -643,7 +643,7 @@ theorem parser_construction_wellformed
 theorem parser_soundness_main
   (bytes : ByteArray) :
   -- Parse from empty state
-  let initial := { db := .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+  let initial := { db := .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                              (interrupt := false) (error? := none) (permissive := false),
                    tokp := .start, charp := .ws, line := 0, linepos := 0 : ParserState }
   let final := initial.feedAll 0 bytes
@@ -669,10 +669,10 @@ theorem parser_soundness_main
   simp only []
   intro h_success
   -- Define initial state inline to use in the theorem
-  let initial := { db := .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+  let initial := { db := .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                              (interrupt := false) (error? := none) (permissive := false),
                    tokp := .start, charp := .ws, line := 0, linepos := 0 : ParserState }
-  have h_initial : initial.db = .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.empty)
+  have h_initial : initial.db = .mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                                       (interrupt := false) (error? := none) (permissive := false) := rfl
   have h_wf := parser_construction_wellformed bytes initial h_initial h_success
   intro label obj h_find

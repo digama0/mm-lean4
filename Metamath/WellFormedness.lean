@@ -58,6 +58,22 @@ def WellFormedDB (db : DB) : Prop :=
     | .assert f fr _ => WellFormedFormula f ∧ WellFormedFrame db fr
     | _              => True)
 
+theorem assert_formula_wf_of_db
+    {db : DB} {lbl name : String} {f : Formula} {fr : Frame}
+    (h_db : WellFormedDB db)
+    (h_find : db.find? lbl = some (Object.assert f fr name)) :
+    WellFormedFormula f := by
+  have h := h_db.2 lbl (Object.assert f fr name) h_find
+  exact h.1
+
+theorem assert_frame_wf_of_db
+    {db : DB} {lbl name : String} {f : Formula} {fr : Frame}
+    (h_db : WellFormedDB db)
+    (h_find : db.find? lbl = some (Object.assert f fr name)) :
+    WellFormedFrame db fr := by
+  have h := h_db.2 lbl (Object.assert f fr name) h_find
+  exact h.2
+
 @[simp] theorem WellFormedFormula.size_pos {f} :
   WellFormedFormula f → 0 < f.size := fun h => h.1
 

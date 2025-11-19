@@ -34,7 +34,7 @@ namespace Array
 @[simp] theorem get!_toList' {α} [Inhabited α]
     (a : Array α) (i : Nat) (h : i < a.size) :
     a[i]! = a.toList[i]! := by
-  simp [getElem!_def, getElem_toList, h]
+  simp [getElem_toList, h]
 
 end Array
 
@@ -425,7 +425,7 @@ def checkHyp (i : Nat) (subst : HashMap String Formula) :
   have h_idx : off.1 + i < stack.size := by
     have : off.1 + i < off.1 + hyps.size := Nat.add_lt_add_left h_i _
     simpa [off.2] using this
-  simp [Array.getBang_eq_get_nat, h_idx, bind, Except.bind]
+  simp [h_idx, bind, Except.bind]
   -- After all simplifications, LHS and RHS are structurally identical
   -- Just need to handle the nested if-then-else and match cases
   split
@@ -459,7 +459,7 @@ def checkHyp (i : Nat) (subst : HashMap String Formula) :
   have h_idx : off.1 + i < stack.size := by
     have : off.1 + i < off.1 + hyps.size := Nat.add_lt_add_left h_i _
     simpa [off.2] using this
-  simp [Array.getBang_eq_get_nat, h_idx]
+  simp [h_idx]
   -- Float case: simpler than essential case, no do-notation to reduce
   split <;> rfl
 

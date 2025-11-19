@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Always prove that which can be proven without using axioms.  No exceptions.
 - Build a solid foundation of concretely proven theorems/lemmas (instead of writing proof sketches with sorries and moving on).
+- Clean code invariants: zero warnings (beyond sorries), zero axioms, zero errors.
 
 # Help
 

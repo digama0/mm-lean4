@@ -442,7 +442,7 @@ theorem parser_enforces_float_uniqueness
     -- For any frame in the database
     db.find? label = some (.assert fmla fr proof) →
     -- No two hypotheses bind the same float variable
-    ∀ (i j : Nat) (hi : i < fr.hyps.size) (hj : j < fr.hyps.size) (h_ne : i ≠ j),
+    ∀ (i j : Nat) (hi : i < fr.hyps.size) (hj : j < fr.hyps.size) (_ : i ≠ j),
       ∀ (fi fj : Formula) (vi vj : String) (lbli lblj : String),
         db.find? fr.hyps[i] = some (.hyp false fi lbli) →
         db.find? fr.hyps[j] = some (.hyp false fj lblj) →
@@ -649,7 +649,7 @@ If parsing succeeds, each label appears at most once in the database.
 -/
 theorem parser_enforces_label_uniqueness
   (db : DB)
-  (h_success : db.error? = none) :
+  (_ : db.error? = none) :
   ∀ (l : String) (obj1 obj2 : Object),
     db.find? l = some obj1 →
     db.find? l = some obj2 →

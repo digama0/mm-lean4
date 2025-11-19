@@ -102,7 +102,7 @@ For essential hyps "e": apply σ to all variables in e to get e[σ]
 -/
 def needOf (vars : List Spec.Variable) (σ : Spec.Subst) (h : Spec.Hyp) : Spec.Expr :=
   match h with
-  | Hyp.floating c v => σ v
+  | Hyp.floating _ v => σ v
   | Hyp.essential e => applySubst vars σ e
 
 /-- Compute the list of needed hypothesis instantiations.
@@ -214,7 +214,7 @@ theorem needed_length (vars : List Spec.Variable) (fr : Spec.Frame) (σ : Spec.S
 **Status:** ✅ PROVEN -/
 theorem TypedSubst_typed_invariant (fr : Spec.Frame) (σ_typed : TypedSubst fr) :
     ∀ c v, Hyp.floating c v ∈ fr.mand → (σ_typed.σ v).typecode = c :=
-  fun c v => σ_typed.typed
+  fun _ _ => σ_typed.typed
 
 /-! ## Module Summary
 

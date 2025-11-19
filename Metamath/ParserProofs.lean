@@ -139,9 +139,9 @@ so if db has an error, it returns db unchanged, preserving the error.
     cases heq : db.error? with
     | none => exfalso; exact h heq
     | some _ => rfl
-  simp [h_some, h]
+  simp
   -- Any remaining branches either return db or mkError, both preserve error
-  repeat (first | assumption | simp [DB.mkError, h] | split)
+  repeat (first | assumption | simp [DB.mkError] | split)
 
 /-- `DB.insert` never changes `.frame`.
 
@@ -161,7 +161,7 @@ theorem insert_frame_unchanged
   unfold DB.insert
   -- All paths preserve frame via: mkError (simp lemma), return db (rfl), or record update (rfl)
   -- Use repeated split to cover all nested branches
-  repeat (first | rfl | simp [DB.mkError_frame] | split)
+  repeat (first | rfl | simp | split)
 
 /-- If inserting a hypothesis succeeds, we must have taken the insert branch,
     hence looking up `l` yields the newly inserted `.hyp`.
@@ -230,7 +230,7 @@ theorem insert_frame_unchanged
           error_persists_mkError db pos s!"duplicate symbol/assert {l}"
         have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
           have hfind' : db.objects[l]? = some o := by unfold DB.find? at hfind; exact hfind
-          cases o <;> simp [DB.find?, hfind', hok] at h_success
+          cases o <;> simp [hfind'] at h_success
         exact (hne hcontra).elim
 
 @[simp] theorem DB.find?_insert_self_assert
@@ -275,7 +275,7 @@ theorem insert_frame_unchanged
           error_persists_mkError db pos s!"duplicate symbol/assert {l}"
         have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
           have hfind' : db.objects[l]? = some o := by unfold DB.find? at hfind; exact hfind
-          cases o <;> simp [DB.find?, hfind', hok] at h_success
+          cases o <;> simp [hfind'] at h_success
         exact (hne hcontra).elim
 
 /-- **Helper Lemma**: If inserting an assertion succeeds, the label was fresh.
@@ -322,7 +322,7 @@ theorem insert_assert_success_implies_fresh
       | some e => simp
     exact this h_success
   · -- db.error = false, so we check for duplicates
-    simp only [h_err, ite_false] at h_success
+    simp only [h_err] at h_success
     -- Now h_success is about: match db.find? l with | some o => ... | none => ...
     -- We have hfind : db.find? l = some o
     cases hfind_case : db.find? l with
@@ -378,7 +378,7 @@ theorem insert_assert_success_implies_fresh
       · -- In the strict-const case, insert raises an error → contradicts `h_success`
         -- With DB.error_mkError, simp collapses the control flow to False
         -- With DB.error_mkError, simp collapses the control flow and closes the goal
-        simp [DB.insert, DB.find?, DB.mkError, DB.error, hobj, h_strict] at h_success
+        simp [DB.mkError, DB.error, hobj, h_strict] at h_success
       · -- Not strict: the `let db := ...` is just `db`; continue
         -- Next gate: `if db.error then db else ...`
         by_cases h_err : db.error
@@ -396,7 +396,7 @@ theorem insert_assert_success_implies_fresh
           | none =>
               -- No duplicate → actual insert at `l`
               -- So at key `l' ≠ l` the lookup is preserved:
-              simp [DB.find?, hfind, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+              simp [DB.find?, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
           | some o =>
               -- Duplicate; compute ok
               -- ok=true iff `o` is `.var _` and `obj l` is `.var _`
@@ -409,7 +409,7 @@ theorem insert_assert_success_implies_fresh
               have : (db.mkError pos s!"duplicate symbol/assert {l}").error? ≠ none := error_persists_mkError db pos s!"duplicate symbol/assert {l}"
               have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
                 have hfind' : db.objects[l]? = some o := by unfold DB.find? at hfind; exact hfind
-                cases o <;> simp [DB.find?, hfind', hok] at h_success
+                cases o <;> simp [DB.find?, hfind'] at h_success
               exact (this hcontra).elim
   | var x =>
       -- Variable case short-circuits like const but without strictness gate.
@@ -423,7 +423,7 @@ theorem insert_assert_success_implies_fresh
         cases hfind : db.find? l with
         | none =>
             -- inserted at l; use HashMap lemma at l' ≠ l
-            simp [DB.find?, hfind, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+            simp [DB.find?, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
         | some o =>
             -- ok=true exactly when old is `.var _` (already true by `some o` + match),
             -- and new is `.var _` (true in this branch). In that subcase the DB returns unchanged.
@@ -434,7 +434,7 @@ theorem insert_assert_success_implies_fresh
                 have hok : (match Object.var y with
                   | .var _ => (match Object.var x with | .var _ => true | _ => false)
                   | _ => false) = true := by simp
-                simp [DB.find?, hfind, hobj, hok]
+                simp [DB.find?]
             | const c' =>
                 -- ok = false → mkError, contradiction
                 have hok : (match Object.const c' with
@@ -444,7 +444,7 @@ theorem insert_assert_success_implies_fresh
                   error_persists_mkError db pos s!"duplicate symbol/assert {l}"
                 have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
                   have hfind' : db.objects[l]? = some (Object.const c') := by unfold DB.find? at hfind; exact hfind
-                  simp [DB.find?, hfind', hok] at h_success
+                  simp [DB.find?, hfind'] at h_success
                 exact (hne hcontra).elim
             | hyp ess' f' l' =>
                 have hok : (match Object.hyp ess' f' l' with
@@ -454,7 +454,7 @@ theorem insert_assert_success_implies_fresh
                   error_persists_mkError db pos s!"duplicate symbol/assert {l}"
                 have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
                   have hfind' : db.objects[l]? = some (Object.hyp ess' f' l') := by unfold DB.find? at hfind; exact hfind
-                  simp [DB.find?, hfind', hok] at h_success
+                  simp [DB.find?, hfind'] at h_success
                 exact (hne hcontra).elim
             | assert f' fr' prf' =>
                 have hok : (match Object.assert f' fr' prf' with
@@ -464,7 +464,7 @@ theorem insert_assert_success_implies_fresh
                   error_persists_mkError db pos s!"duplicate symbol/assert {l}"
                 have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
                   have hfind' : db.objects[l]? = some (Object.assert f' fr' prf') := by unfold DB.find? at hfind; exact hfind
-                  simp [DB.find?, hfind', hok] at h_success
+                  simp [DB.find?, hfind'] at h_success
                 exact (hne hcontra).elim
   | hyp ess f _ =>
       -- This mirrors the proof of DB.find?_insert_self_hyp, but at key l' ≠ l.
@@ -477,7 +477,7 @@ theorem insert_assert_success_implies_fresh
         cases hfind : db.find? l with
         | none =>
             -- Insert at l → preserve l'
-            simp [DB.find?, hfind, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+            simp [DB.find?, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
         | some o =>
             -- ok=false (new is hyp, not var) → mkError → contradiction
             have hok : (match o with
@@ -487,7 +487,7 @@ theorem insert_assert_success_implies_fresh
             have : (db.mkError pos s!"duplicate symbol/assert {l}").error? ≠ none := error_persists_mkError db pos s!"duplicate symbol/assert {l}"
             have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
               have hfind' : db.objects[l]? = some o := by unfold DB.find? at hfind; exact hfind
-              cases o <;> simp [DB.find?, hfind', hok] at h_success
+              cases o <;> simp [DB.find?, hfind'] at h_success
             exact (this hcontra).elim
   | assert _ _ _ =>
       -- Same shape as hyp: ok=false in duplicate branch; otherwise HashMap lemma
@@ -499,7 +499,7 @@ theorem insert_assert_success_implies_fresh
       · simp [hobj, h_err] at h_success ⊢
         cases hfind : db.find? l with
         | none =>
-            simp [DB.find?, hfind, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+            simp [DB.find?, KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
         | some o =>
             have hok : (match o with
               | .var _ => (match (obj l : Object) with | .var _ => true | _ => false)
@@ -508,7 +508,7 @@ theorem insert_assert_success_implies_fresh
             have : (db.mkError pos s!"duplicate symbol/assert {l}").error? ≠ none := error_persists_mkError db pos s!"duplicate symbol/assert {l}"
             have hcontra : (db.mkError pos s!"duplicate symbol/assert {l}").error? = none := by
               have hfind' : db.objects[l]? = some o := by unfold DB.find? at hfind; exact hfind
-              cases o <;> simp [DB.find?, hfind', hok] at h_success
+              cases o <;> simp [DB.find?, hfind'] at h_success
             exact (this hcontra).elim
 
 /-- If insert succeeds, lookups at other labels are preserved.
@@ -693,7 +693,7 @@ theorem insertHyp_maintains_db_uniqueness
       -- db' = (db.insert pos l (.hyp true f)).withHyps (fun hyps => hyps.push l)
       unfold DB.insertHyp at h_find_a
       rw [h_ess] at h_find_a
-      simp only [ite_true, Id.run] at h_find_a
+      simp only [Id.run] at h_find_a
       -- Now: h_find_a : (db.insert pos l (.hyp true f)).withHyps (...).find? label_a = some (.assert ...)
       -- Step 1: Use DB.withHyps_find? to eliminate withHyps
       have h_find_after_insert : (db.insert pos l (.hyp true f)).find? label_a = some (.assert fmla_a fr_a proof_a) := by
@@ -983,14 +983,14 @@ theorem frame_has_unique_floats_insert_ne
 /-- Size of a shrunk array is the minimum of the target size and original size. -/
 theorem Array.size_shrink {α : Type _} (arr : Array α) (n : Nat) :
   (arr.shrink n).size = min n arr.size := by
-  simp [Array.shrink, Array.extract]
+  simp [Array.shrink]
   omega
 
 /-- Array.shrink preserves elements at valid indices. -/
 theorem Array.getElem_shrink {α : Type _} (arr : Array α) (n : Nat) (i : Nat)
   (h1 : i < n) (h2 : i < arr.size) :
   (arr.shrink n)[i]'(by simp [Array.shrink]; omega) = arr[i] := by
-  simp [Array.shrink, Array.extract]
+  simp [Array.shrink]
 
 /-! ## Operational Semantics for Parser -/
 
@@ -1061,7 +1061,7 @@ theorem empty_db_has_unique_floats :
   · -- No assertions in empty db
     intros label fmla fr proof h_find
     unfold DB.find? emptyDB at h_find
-    simp [Std.HashMap.empty] at h_find
+    simp at h_find
 
 /-- **Key Lemma**: Each database operation preserves the uniqueness invariant
 (or sets error flag).
@@ -1103,7 +1103,7 @@ theorem DBOp.preserves_invariant (op : DBOp) (db : DB)
       | error msg =>
           -- trimFrame' failed → mkError
           right
-          simp [h_trim, DB.error_mkError]
+          simp [h_trim]
       | ok fr =>
           -- trimFrame' succeeded
           simp [h_trim]
@@ -1231,7 +1231,7 @@ theorem DBOp.preserves_invariant (op : DBOp) (db : DB)
                         unfold DB.insert at h_success_ins
                         simp [h_err] at h_success_ins
                         have hfind' : db.objects[l]? = some o := by unfold DB.find? at hfind_old; exact hfind_old
-                        simp [DB.find?, hfind_old, hfind'] at h_success_ins
+                        simp [DB.find?, hfind'] at h_success_ins
                         -- Now h_success_ins has: (if (match o with | .var _ => false | _ => false) = true then db else mkError).error? = none
                         -- Split on o to show the match returns false in all cases
                         cases o <;> simp at h_success_ins <;> exact h_success_ins
@@ -1265,7 +1265,7 @@ theorem DBOp.preserves_invariant (op : DBOp) (db : DB)
       | none =>
           -- No scope to pop: mkError sets error
           right
-          simp [DB.error_mkError]
+          simp
       | some sc =>
           -- Pop succeeds: frame shrinks to first sc elements
           left
@@ -1387,7 +1387,7 @@ theorem prove_parser_validates_float_uniqueness :
   ∀ (db : DB) (label : String) (fmla : Formula) (fr : Frame) (proof : String),
     db.error? = none →
     db.find? label = some (.assert fmla fr proof) →
-    ∀ (i j : Nat) (hi : i < fr.hyps.size) (hj : j < fr.hyps.size) (h_ne : i ≠ j),
+    ∀ (i j : Nat) (hi : i < fr.hyps.size) (hj : j < fr.hyps.size) (_ : i ≠ j),
       ∀ (fi fj : Formula) (vi vj : String) (lbli lblj : String),
         db.find? fr.hyps[i] = some (.hyp false fi lbli) →
         db.find? fr.hyps[j] = some (.hyp false fj lblj) →

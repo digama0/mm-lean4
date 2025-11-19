@@ -54,7 +54,7 @@ theorem insert_const_inner_different_error :
   -- 2. Then checks if error=true (which it is after mkError), and returns that DB
   -- So result error? has the NEW message, not the original "previous error"
   -- The goal becomes: prove the error? fields with different messages are not equal
-  simp only [if_pos]
+  simp
   -- simp should reduce to string inequality, but if it doesn't we need to be more explicit
   sorry
 

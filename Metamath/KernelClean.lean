@@ -115,7 +115,7 @@ open scoped Classical
 /-- When index is in bounds, getElem! equals getElem. -/
 theorem getElem!_pos {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.size) :
     a[i]! = a[i]'h := by
-  simp [getElem!_def, h]
+  simp [h]
 
 /-! ## Substitution Helper Lemmas
 
@@ -165,7 +165,7 @@ theorem foldl_push_size_pos {α : Type u} (arr : Array α) (init : Array α) (st
   | cons x xs ih =>
     -- (x :: xs).foldl push init = xs.foldl push (init.push x)
     rw [List.foldl_cons]
-    have h_push : 0 < (init.push x).size := by simp [Array.size_push, h_init]
+    have h_push : 0 < (init.push x).size := by simp [Array.size_push]
     exact ih (init.push x) h_push
 
 /-- List.foldl with Array.push preserves the head element (helper for array version). -/
@@ -174,7 +174,7 @@ theorem list_foldl_push_toList {α : Type u} (xs : List α) (init : Array α) :
   induction xs generalizing init with
   | nil => simp
   | cons x xs ih =>
-    simp [List.foldl_cons, Array.toList_push, ih, List.append_assoc]
+    simp [List.foldl_cons]
 
 theorem list_foldl_push_preserves_head {α : Type u} (xs : List α) (init : Array α)
     (h_init : 0 < init.size)
@@ -185,7 +185,7 @@ theorem list_foldl_push_preserves_head {α : Type u} (xs : List α) (init : Arra
     simp [List.foldl]
   | cons x xs ih =>
     simp only [List.foldl_cons] at h_result
-    have h_push_size : 0 < (init.push x).size := by simp [Array.size_push, h_init]
+    have h_push_size : 0 < (init.push x).size := by simp [Array.size_push]
     have h_push_preserves : (init.push x)[0]'h_push_size = init[0]'h_init := by
       have : 0 < init.size := h_init
       simp [Array.getElem_push, this]
@@ -227,12 +227,12 @@ theorem array_foldl_push_tail {α : Type u} (arr : Array α) (init : Array α) (
     have h_size : init.size = 0 := by
       have hlen := congrArg List.length h_nil
       simpa [Array.toList_length] using hlen
-    have : False := by simpa [h_size] using h_nonempty
+    have : False := by simp [h_size] at h_nonempty
     cases this
   have h_toList := array_foldl_push_toList arr init start
   have h_tail :=
     List.tail_append_of_ne_nil (xs := init.toList) (ys := arr.toList.drop start) h_ne
-  simpa [h_toList, h_tail]
+  simp [h_toList, h_tail]
 
 /-- Helper: foldlM with substStep starting from #[const c] preserves nonemptiness.
 
@@ -264,10 +264,10 @@ theorem foldlM_substStep_nonempty_general
                     Except.ok (init.push (Verify.Sym.const c')) := by
         unfold Formula.substStep
         rfl
-      simp only [h_step, Except.bind] at h_fold
+      simp only [h_step] at h_fold
       -- h_fold: rest.foldlM substStep (init.push (const c')) = ok result
       have h_push_nonempty : 0 < (init.push (Verify.Sym.const c')).size := by
-        simp [Array.size_push, h_init]
+        simp [Array.size_push]
       exact ih (init.push (Verify.Sym.const c')) result h_push_nonempty h_fold
     | var v =>
       unfold Formula.substStep at h_fold
@@ -316,10 +316,10 @@ theorem foldlM_substStep_preserves_head_general
                     Except.ok (init.push (Verify.Sym.const c')) := by
         unfold Formula.substStep
         rfl
-      simp only [h_step, Except.bind] at h_fold
+      simp only [h_step] at h_fold
       -- h_fold: rest.foldlM substStep (init.push (const c')) = ok result
       have h_push_nonempty : 0 < (init.push (Verify.Sym.const c')).size := by
-        simp [Array.size_push, h_init]
+        simp [Array.size_push]
       have h_push_head : (init.push (Verify.Sym.const c'))[0]'h_push_nonempty = init[0]'h_init := by
         exact Array.getElem_push_lt h_init
       have h_rest : result[0]'h_result = (init.push (Verify.Sym.const c'))[0]'h_push_nonempty :=
@@ -377,11 +377,10 @@ theorem subst_preserves_head_of_const0 {σ : Std.HashMap String Formula} {f g : 
     have h_size_zero : f.size = 0 := by
       have hlen := congrArg List.length h_nil
       simpa [Array.toList_length] using hlen
-    exact Nat.lt_irrefl 0 (by simpa [h_size_zero] using hf)
+    exact Nat.lt_irrefl 0 (by simp [h_size_zero] at hf)
   obtain ⟨s, rest, h_list⟩ := List.exists_cons_of_ne_nil h_list_ne
   have h_toList_head : f.toList[0]! = s := by
-    have : (s :: rest)[0]! = s := by simp
-    simpa [h_list] using this
+    simp [h_list]
   have h_s_eq : s = f[0]! := by
     have h_get := getElem!_toList f 0 hf
     exact h_toList_head.symm.trans h_get.symm
@@ -485,11 +484,10 @@ theorem subst_ok_flatMap_tail {σ : Std.HashMap String Formula} {f g : Formula}
     have h_size_zero : f.size = 0 := by
       have hlen := congrArg List.length h_nil
       simpa [Array.toList_length] using hlen
-    exact Nat.lt_irrefl 0 (by simpa [h_size_zero] using hf)
+    exact Nat.lt_irrefl 0 (by simp [h_size_zero] at hf)
   obtain ⟨s, rest, h_list⟩ := List.exists_cons_of_ne_nil h_list_ne
   have h_toList_head : f.toList[0]! = s := by
-    have : (s :: rest)[0]! = s := by simp
-    simpa [h_list] using this
+    simp [h_list]
   have h_s_eq : s = f[0]! := by
     have h_get := getElem!_toList f 0 hf
     exact h_toList_head.symm.trans h_get.symm
@@ -506,11 +504,11 @@ theorem subst_ok_flatMap_tail {σ : Std.HashMap String Formula} {f g : Formula}
         rest.flatMap (substTailMap σ) :=
     subst_toList_eq (σ := σ) (syms := rest) (acc := #[Sym.const c]) h_rest
   have h_rest_eq : rest = f.toList.tail := by
-    simpa [h_list]
+    simp [h_list]
   have h_tail :
       g.toList.tail = rest.flatMap (substTailMap σ) := by
     have h_ne : ((#[Sym.const c] : Formula).toList) ≠ ([] : List Verify.Sym) := by
-      simp [Array.toList]
+      simp
     have := congrArg List.tail h_toList
     simpa [Array.toList, List.singleton_append, List.append_assoc,
       List.tail_append_of_ne_nil h_ne] using this
@@ -547,7 +545,7 @@ theorem toSym_var_ne_const {v c : String} (h : v ≠ c) :
 /-- For size-2 array, toList has exactly 2 elements -/
 theorem array_size2_toList {f : Verify.Formula} (h_size : f.size = 2) :
     f.toList.length = 2 := by
-  simp [Array.toList_length, h_size]
+  simp [h_size]
 
 /-- For size-2 array, tail has exactly 1 element -/
 theorem array_size2_tail_singleton {f : Verify.Formula} (h_size : f.size = 2) :
@@ -721,11 +719,11 @@ theorem vars_apply_subset (vars : List Spec.Variable) (σ : Spec.Subst) (e : Spe
   · right
     refine ⟨Spec.Variable.mk s', ?_, ?_⟩
     · unfold Spec.varsInExpr
-      simp [List.filterMap, hs'_mem, h_var_s']
+      simp [hs'_mem, h_var_s']
     · unfold Spec.varsInExpr
       have : s ∈ (σ (Spec.Variable.mk s')).syms := by
         simpa [h_var_s'] using hs_in
-      simp [List.filterMap, this, h_var_s]
+      simp [this, h_var_s]
   · have : s = s' := by simpa [h_var_s'] using hs_in
     have : Spec.Variable.mk s' ∈ vars := by simpa [this] using h_var_s
     exact absurd this h_var_s'
@@ -1256,7 +1254,7 @@ theorem convertHyp_float_from_var (db : Verify.DB) (label : String) (f : Verify.
 
   -- h_conv now has form: (do let e ← toExprOpt f; match e with | ⟨c, [v]⟩ => ...) = some (...)
   have h_size_pos : 0 < f.size := by omega
-  simp [toExprOpt, h_size_pos] at h_conv
+  simp [h_size_pos] at h_conv
 
   -- Build the explicit equality using our proven lemma
   have h_tail : f.toList.tail = [f[1]!] := array_size2_tail_is_second_elem h_size
@@ -1411,7 +1409,7 @@ theorem List.mapM_mem {α β : Type u_1} (f : α → Option β) (xs : List α) (
                     -- h_fa : f a = some y_head
                     -- So: y = y_head (by transitivity of y = y_head' and y_head = y_head')
                     have hy : y = y_head := by rw [h_eq, ← h_head]
-                    exact ⟨a, by simp [hy], by rw [hy]; exact h_fa⟩
+                    exact ⟨a, by simp, by rw [hy]; exact h_fa⟩
               · -- y ∈ ys_tail: use induction on tail
                 -- Extract mapM f as = some ys_tail from h
                 have h_as : List.mapM f as = some ys_tail := by
@@ -1419,16 +1417,16 @@ theorem List.mapM_mem {α β : Type u_1} (f : α → Option β) (xs : List α) (
                   | none =>
                       -- mapM f as = none, so bind gives none
                       -- But h says it equals some (y_head :: ys_tail), contradiction
-                      simp [List.mapM_cons, h_fa, hm] at h
+                      simp [hm] at h
                   | some ys' =>
                       -- mapM f as = some ys', so bind gives some (y_head :: ys')
                       -- From h and the equalities, we can derive ys' = ys_tail
                       have h_eq_tails : ys' = ys_tail := by
-                        simp [List.mapM_cons, h_fa, hm] at h
+                        simp [hm] at h
                         exact h.2
                       -- Now h_eq_tails : ys' = ys_tail and hm : List.mapM f as = some ys'
                       -- We need to prove: List.mapM f as = some ys_tail
-                      simp only [← h_eq_tails, hm]
+                      simp only [← h_eq_tails]
                 -- Apply induction
                 obtain ⟨x, hx_mem, hx_eq⟩ := ih ys_tail h_as h_mem_tail
                 exact ⟨x, by simp [hx_mem], hx_eq⟩
@@ -1472,7 +1470,7 @@ theorem toFrame_some_of_wfFrame (db : Verify.DB) :
     -- But we need it for db.frame.hyps[i]! which is used in the goal
     -- Use getElem!_pos: when i < size, arr[i]! = arr[i]
     have h_bang : db.frame.hyps[i]! = db.frame.hyps[i] := by
-      simp [getElem!_pos, hi]
+      simp [hi]
     -- Now substitute into h_find
     have h_find' : db.find? db.frame.hyps[i]! = some (.hyp ess f lbl) := by
       rw [h_bang]
@@ -1672,7 +1670,7 @@ theorem toFrame_vars_from_var (db : Verify.DB) (fr_impl : Verify.Frame) (fr_spec
       -- Bridge: fr_impl.hyps.toList.get i = fr_impl.hyps[i]!
       have h_lbl_eq : lbl = fr_impl.hyps[i]! := by
         rw [← h_lbl_get]
-        simp [Array.getElem!_toList, hi_arr]
+        simp [hi_arr]
 
       -- Apply HypOK to get well-formedness
       have h_ok := h_hypOK i hi_arr
@@ -1779,24 +1777,24 @@ theorem bind_convertHyp_eq_floatVarOfLabel (db : Verify.DB) (lbl : String) :
   cases h_find : db.find? lbl with
   | none =>
       -- Neither side succeeds
-      simp [h_find]
+      simp []
   | some obj =>
       cases obj with
       | const _ =>
           -- Not a hypothesis
-          simp [h_find]
+          simp []
       | var _ =>
           -- Not a hypothesis
-          simp [h_find]
+          simp []
       | hyp ess f _ =>
           cases ess
           · -- Float hypothesis: ess = false
-            simp [h_find]
+            simp []
             -- Case split on toExprOpt f
             cases h_expr : toExprOpt f with
             | none =>
                 -- Malformed expression
-                simp [h_expr]
+                simp []
             | some e =>
                 -- Got expression, match on structure
                 cases e with
@@ -1817,10 +1815,10 @@ theorem bind_convertHyp_eq_floatVarOfLabel (db : Verify.DB) (lbl : String) :
           · -- Essential hypothesis: ess = true
             -- Essential: convertHyp succeeds, but floatVarOfHyp returns none
             -- floatVarOfLabel also returns none
-            simp [h_find]
+            simp []
       | assert _ _ _ =>
           -- Not a hypothesis
-          simp [h_find]
+          simp []
 
 /-- **No axiom needed**: floats extracted from the spec frame are exactly
     the floats of the original label array.
@@ -1980,19 +1978,19 @@ theorem viewStack_push (stack : Array Verify.Formula) (f : Verify.Formula) :
   simp [Array.toList_push, List.map_append]
 
 /-- Popping k elements from impl stack corresponds to dropping from spec stack -/
-theorem viewStack_popK (stack : Array Verify.Formula) (k : Nat) (h : k ≤ stack.size) :
+theorem viewStack_popK (stack : Array Verify.Formula) (k : Nat) (_: k ≤ stack.size) :
   viewStack (stack.extract 0 (stack.size - k)) = (viewStack stack).dropLastN k := by
   unfold viewStack
-  simp [Array.toList_extract_dropLastN stack k h]
+  simp []
   -- map toExpr of dropLastN = dropLastN of map toExpr (proved by simp)
 
 /-- Taking a window from impl stack corresponds to taking from spec stack -/
-theorem viewStack_window (stack : Array Verify.Formula) (off len : Nat) (h : off + len ≤ stack.size) :
+theorem viewStack_window (stack : Array Verify.Formula) (off len : Nat) (_: off + len ≤ stack.size) :
   viewStack (stack.extract off (off + len)) = ((viewStack stack).drop off).take len := by
   unfold viewStack
   -- Standard list lemma: window extraction commutes with map
   -- Need: (extract → toList → map) = (toList → map → drop → take)
-  simp [Array.window_toList_map stack off len toExpr h]
+  simp []
 
 /-- Initial state invariant: empty stack with current frame -/
 theorem ProofStateInv_init (db : Verify.DB) (Γ : Spec.Database) (fr_spec : Spec.Frame)
@@ -2484,7 +2482,7 @@ theorem flatMap_toSym_correspondence
 
           -- Use helper lemma: constants aren't in vars (using proven precondition)
           have h_not_var := const_not_in_vars_with_precondition c vars h_vars_from_var
-          simp only [h_not_var, ite_false, List.flatMap_cons, List.singleton_append]
+          simp only [h_not_var, ite_false, List.singleton_append]
 
           -- Now both sides are: toSym (const c) :: ...
           -- Apply IH to the tail
@@ -2500,10 +2498,10 @@ theorem flatMap_toSym_correspondence
           have ⟨f_v, h_lookup, h_toExpr_match⟩ := h_match (Spec.Variable.mk v) h_v_in
 
           -- Clean up Variable.mk
-          simp [Spec.Variable.mk] at h_lookup
+          simp [] at h_lookup
 
           -- Rewrite to use the binding we found
-          simp only [h_lookup, List.map_append, List.map]
+          simp only [h_lookup]
 
           -- h_toExpr_match: toExpr f_v = σ_spec (Variable.mk v)
           -- Key insight: toExpr f_v = {syms := f_v.toList.tail.map toSym, ...}
@@ -2695,9 +2693,9 @@ theorem FloatReq_of_insert_self
     (σ  : Std.HashMap String Verify.Formula)
     (n : Nat) (f : Verify.Formula) (lbl : String)
     (c : String) (v : String) (val : Verify.Formula)
-    (h_bound : n < hyps.size)
+    (_: n < hyps.size)
     (h_find  : db.find? hyps[n]! = some (.hyp false f lbl))
-    (h_sz    : f.size = 2)
+    (_: f.size = 2)
     (h0      : f[0]! = Verify.Sym.const c)
     (h1      : f[1]! = Verify.Sym.var   v)
     (h_val_sz : val.size > 0)
@@ -2745,7 +2743,7 @@ theorem FloatReq_preserve_of_insert_ne
   cases h0 : f[0]! with
   | const c =>
       -- Rewrite both goal and hypothesis with the discovered values
-      simp only [h0, h1]
+      simp only [h1]
       rw [h0, h1] at hReq''
       obtain ⟨val0, hlook, hsz0, htc0⟩ := hReq''
       -- Provide same witness, but lookup in σ.insert k val_ins
@@ -2756,7 +2754,7 @@ theorem FloatReq_preserve_of_insert_ne
         exact hlook
       · exact ⟨hsz0, htc0⟩
   | var _ =>
-      simp only [h0]
+      simp only []
 
 
 /-- (C) Ladder (B) over *all* `j < n`: inserting at key `k` preserves all
@@ -2768,7 +2766,7 @@ theorem FloatsProcessed_preserve_insert
     (noClash :
       ∀ j, j < n →
         match db.find? hyps[j]! with
-        | some (.hyp false f lbl) =>
+        | some (.hyp false f _) =>
             f.size = 2 →
             match f[1]! with
             | Verify.Sym.var v => v ≠ k
@@ -2869,7 +2867,7 @@ theorem FloatsProcessed_succ_of_insert
     (h_noClash :
       ∀ j, j < n →
         match db.find? hyps[j]! with
-        | some (.hyp false f' lbl') =>
+        | some (.hyp false f' _) =>
             f'.size = 2 →
             match f'[1]! with
             | Verify.Sym.var v' => v' ≠ v
@@ -2933,7 +2931,7 @@ theorem checkHyp_operational_general
       have h_out_eq : σ_out = σ_in := by
         -- When i ≥ hyps.size, checkHyp returns σ_in immediately
         unfold Verify.DB.checkHyp at h_checkHyp
-        simp only [Nat.not_lt.mpr h_i_ge, ite_false] at h_checkHyp
+        simp only [Nat.not_lt.mpr h_i_ge] at h_checkHyp
         cases h_checkHyp
         rfl
       subst h_out_eq
@@ -2962,7 +2960,7 @@ theorem checkHyp_operational_general
 
           | hyp ess f lbl =>
               -- Convert h_find from hyps[i]! to hyps[i] for equation lemmas
-              have h_bang : hyps[i]! = hyps[i] := by simp [getElem!_pos, h_i_lt]
+              have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
               have h_find' : db.find? hyps[i] = some (Verify.Object.hyp ess f lbl) := by
                 rw [← h_bang]
                 exact h_find
@@ -2997,7 +2995,7 @@ theorem checkHyp_operational_general
                               intro _
                               -- Convert from hyps[j] to hyps[j]!
                               have hj_lt : j < hyps.size := by omega
-                              have h_bang : hyps[j]! = hyps[j] := by simp [getElem!_pos, hj_lt]
+                              have h_bang : hyps[j]! = hyps[j] := by simp [hj_lt]
                               rw [h_bang]
                               -- Use h_find' with j = i
                               subst hj_eq_i
@@ -3034,7 +3032,7 @@ theorem checkHyp_operational_general
                     -- So f = f', ess' = false, lbl = lbl'
                     have h_eq : some (Verify.Object.hyp false f lbl) = some (Verify.Object.hyp ess' f' lbl') := by
                       -- Convert h_find_wf from hyps[i]! to hyps[i]
-                      have h_bang : hyps[i]! = hyps[i] := by simp [getElem!_pos, h_i_lt]
+                      have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
                       have h_find_wf' : db.find? hyps[i] = some (Verify.Object.hyp ess' f' lbl') := by
                         rw [← h_bang]
                         exact h_find_wf
@@ -3061,7 +3059,7 @@ theorem checkHyp_operational_general
                       exact h_checkHyp
 
                     -- Convert h_find' from hyps[i] to hyps[i]!
-                    have h_bang : hyps[i]! = hyps[i] := by simp [getElem!_pos, h_i_lt]
+                    have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
                     have h_find'' : db.find? hyps[i]! = some (Verify.Object.hyp false f lbl) := by
                       rw [h_bang]
                       exact h_find'
@@ -3100,7 +3098,7 @@ theorem checkHyp_operational_general
                       -- val[0] and val[0]! are equal when 0 < val.size
                       -- So their .value fields are equal
                       calc val[0].value
-                        _ = val[0]!.value := by congr; simp [getElem!_pos, Nat.zero_lt_of_lt h_val_sz]
+                        _ = val[0]!.value := by congr; simp [Nat.zero_lt_of_lt h_val_sz]
                         _ = c := h_beq_true.symm
 
                     -- Prove noClash: earlier floats don't bind v
@@ -3133,7 +3131,7 @@ theorem checkHyp_operational_general
                               have hj_lt : j < hyps.size := Nat.lt_trans hj_lt_i h_i_lt
                               have h_ne : j ≠ i := Nat.ne_of_lt hj_lt_i
                               -- Convert h_find_j from hyps[j]! to hyps[j]
-                              have h_bang_j : hyps[j]! = hyps[j] := by simp [getElem!_pos, hj_lt]
+                              have h_bang_j : hyps[j]! = hyps[j] := by simp [hj_lt]
                               have h_find_j' : db.find? hyps[j] = some (.hyp false f' lbl') := by
                                 rw [← h_bang_j]
                                 exact h_find_j
@@ -3449,7 +3447,7 @@ enabling ProofValid.useAxiom's "needed" list construction.
 theorem checkHyp_hyp_matches
   (db : Verify.DB) (hyps : Array String) (stack : Array Verify.Formula)
   (off : {off : Nat // off + hyps.size = stack.size})
-  (i : Nat) (h_i : i < hyps.size)
+  (i : Nat) (_: i < hyps.size)
   (σ_impl : Std.HashMap String Verify.Formula)
   (fr_spec : Spec.Frame) (σ_typed : Bridge.TypedSubst fr_spec) :
   Verify.DB.checkHyp db hyps stack off 0 ∅ = Except.ok σ_impl →
@@ -3465,9 +3463,9 @@ When the implementation checks DV constraints in stepAssert:
 - This enables ProofValid.useAxiom's DV conditions
 -/
 theorem dv_check_sound
-  (db : Verify.DB) (dv : List (String × String))
-  (σ_impl : Std.HashMap String Verify.Formula)
-  (fr_spec : Spec.Frame) (σ_typed : Bridge.TypedSubst fr_spec) :
+  (_: Verify.DB) (_: List (String × String))
+  (_: Std.HashMap String Verify.Formula)
+  (fr_spec : Spec.Frame) (_: Bridge.TypedSubst fr_spec) :
   True := by  -- Minimal stub: returns True to unblock assert_step_ok
   trivial
 
@@ -3610,7 +3608,7 @@ theorem assert_step_ok
   ∃ (stack_new : List Spec.Expr) (e_conclusion : Spec.Expr),
     ProofStateInv db pr' Γ fr_spec stack_new ∧
     -- Stack transformation: pop "needed" hypotheses, push conclusion
-    (∃ needed : List Spec.Expr,
+    (∃ _: List Spec.Expr,
       stack_new = (stack_spec.dropLastN fr_impl.hyps.size) ++ [e_conclusion]) := by
   intro inv h_frame_wf h_find h_fr_assert h_expr h_formula_wf h_db_lookup h_step
 
@@ -3728,14 +3726,14 @@ theorem assert_step_ok
         rw [h_subst_res] at h_step
         -- After DV loop (which we split on next), error would propagate
         split at h_step
-        · simp [Bind.bind, Except.bind] at h_step
+        · simp [] at h_step
         · simp [Functor.map, Except.map] at h_step
       | ok concl_impl =>
         -- Subst succeeded! Now split on DV forIn
         rw [h_subst_res] at h_step
         split at h_step
         · -- DV forIn error
-          simp [Functor.map, Except.map] at h_step
+          simp [] at h_step
         · -- DV forIn ok, now extract pr'
           simp [Functor.map, Except.map] at h_step
           -- h_step : { pr with stack := (pr.stack.extract ...).push concl_impl } = pr'
