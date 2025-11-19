@@ -334,6 +334,71 @@ theorem idRun_forIn_yield_eq_foldl
   simp [Id.run]
   congr 1
 
+/-- Array.foldl with start parameter equals List.foldl on the suffix (drop start).
+
+    **TODO:** This should be provable using existing Batteries infrastructure:
+    1. Show Array.foldl = Id.run of foldlM (definitional)
+    2. Show foldlM relates to forIn (use forIn characterization)
+    3. Apply idRun_forIn_yield_eq_foldl (already proven above!)
+    4. Use Array.toList_extract + List.extract (both exist in Batteries)
+    5. Simplify take to identity (List.take_of_length_le)
+
+    **Current blocker:** After unfold Array.foldl, the pattern doesn't match what
+    idRun_forIn_yield_eq_foldl expects. Need to find the right Batteries lemmas.
+-/
+theorem foldl_eq_list_foldl_drop
+    {α β} (arr   : Array α)
+          (init  : β)
+          (start : Nat)
+          (f     : β → α → β) :
+    arr.foldl (init := init) (start := start) f =
+      (arr.toList.drop start).foldl f init := by
+  have h_fold :
+      arr.foldl (init := init) (start := start) f =
+        (arr.extract start arr.size).foldl f init := by
+    unfold Array.foldl
+    exact
+      congrArg Id.run
+        (Array.foldlM_start_stop (m := Id)
+          (xs := arr)
+          (f := fun x y => pure (f x y))
+          (b := init)
+          (start := start)
+          (stop := arr.size))
+  have h_list :
+      (arr.extract start arr.size).foldl f init =
+        ((arr.extract start arr.size).toList).foldl f init := by
+    simpa using
+      (Array.foldl_toList (f := f) (xs := arr.extract start arr.size) (init := init)).symm
+  have h_drop :
+      ((arr.extract start arr.size).toList) = arr.toList.drop start := by
+    have h_extract :
+        ((arr.extract start arr.size).toList) =
+          arr.toList.extract start arr.size := by
+      simpa using
+        (Array.toList_extract (xs := arr) (start := start) (stop := arr.size))
+    have h_stop :
+        arr.toList.extract start arr.size = arr.toList.extract start := by
+      simpa [Array.length_toList] using
+        (by rfl :
+          arr.toList.extract start arr.toList.length = arr.toList.extract start)
+    have h_drop' :
+        arr.toList.extract start = arr.toList.drop start := by
+      simpa using
+        (List.drop_eq_extract (l := arr.toList) (k := start)).symm
+    exact h_extract.trans (h_stop.trans h_drop')
+  have h_list_drop :
+      ((arr.extract start arr.size).toList).foldl f init =
+        (arr.toList.drop start).foldl f init :=
+    by
+      simpa using
+        congrArg (fun xs : List α => xs.foldl f init) h_drop
+  calc
+    arr.foldl (init := init) (start := start) f
+        = (arr.extract start arr.size).foldl f init := h_fold
+    _ = ((arr.extract start arr.size).toList).foldl f init := h_list
+    _ = (arr.toList.drop start).foldl f init := h_list_drop
+
 end Array
 
 end ArrayListExt

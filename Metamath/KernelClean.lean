@@ -98,6 +98,7 @@ import Metamath.Bridge.Basics
 import Metamath.AllM
 import Metamath.WellFormedness
 import Metamath.ParserInvariants
+import Metamath.ArrayListExt
 import Batteries.Data.List.Basic
 -- import Metamath.ParserProofs  -- Temporarily disabled due to Batteries 4.24.0 ByteSlice conflict
 
@@ -107,30 +108,424 @@ open Metamath.Spec
 open Metamath.Verify
 open Metamath.Bridge
 open Metamath.WF
+open scoped Classical
 
-/-! ## Stub Lemmas (Temporarily Commented Out - See Lines 452-731, 1051-1120) -/
+/-! ## Array getElem! helpers -/
 
-/-- Head preservation: When substituting in a formula starting with a constant,
-    the resulting formula also starts with a constant. -/
+/-- When index is in bounds, getElem! equals getElem. -/
+theorem getElem!_pos {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.size) :
+    a[i]! = a[i]'h := by
+  simp [getElem!_def, h]
+
+/-! ## Substitution Helper Lemmas
+
+These lemmas establish the key invariants for Formula.substStep:
+1. Non-emptiness: Starting from a nonempty accumulator, substStep preserves nonemptiness
+2. Head preservation: Starting from #[const c], substStep preserves the head constant
+-/
+
+/-- Characterization lemma: substStep on variables returns ok iff the lookup succeeds.
+    This avoids repeatedly unfolding the nested match in substStep. -/
+theorem substStep_var_ok_iff
+    (σ : Std.HashMap String Formula)
+    (acc r : Formula) (v : String) :
+  Formula.substStep σ acc (Verify.Sym.var v) = Except.ok r ↔
+    ∃ e_val, σ[v]? = some e_val ∧ r = e_val.foldl Array.push acc 1 := by
+  unfold Formula.substStep
+  -- After unfolding, we have: match (var v) with | const _ => ... | var v => match σ[v]? ...
+  -- The first match resolves to the var branch
+  simp only []
+  -- Now split on the HashMap lookup σ[v]?
+  split
+  · -- none case: error ≠ ok r
+    sorry  -- TODO: error case characterization
+  · -- some case: ok (e.foldl ...) = ok r ↔ ∃ e_val, ...
+    rename_i e_val
+    sorry  -- TODO: some case characterization
+
+/-- Array.foldl with Array.push starting from nonempty array stays nonempty.
+    This is used in the variable case of substStep.
+
+    **Mario's proof:** Bridge to List, prove by induction, done. -/
+theorem foldl_push_size_pos {α : Type u} (arr : Array α) (init : Array α) (start : Nat)
+    (h_init : 0 < init.size) :
+    0 < (arr.foldl (init := init) (start := start) Array.push).size := by
+  -- Bridge to list version (proven in ArrayListExt!)
+  rw [List.ArrayListExt.Array.foldl_eq_list_foldl_drop]
+
+  -- Now prove for lists by induction
+  generalize (arr.toList.drop start) = xs
+  clear arr start
+
+  induction xs generalizing init with
+  | nil =>
+    -- xs.foldl push init = init
+    rw [List.foldl_nil]
+    exact h_init
+  | cons x xs ih =>
+    -- (x :: xs).foldl push init = xs.foldl push (init.push x)
+    rw [List.foldl_cons]
+    have h_push : 0 < (init.push x).size := by simp [Array.size_push, h_init]
+    exact ih (init.push x) h_push
+
+/-- List.foldl with Array.push preserves the head element (helper for array version). -/
+theorem list_foldl_push_toList {α : Type u} (xs : List α) (init : Array α) :
+    (xs.foldl Array.push init).toList = init.toList ++ xs := by
+  induction xs generalizing init with
+  | nil => simp
+  | cons x xs ih =>
+    simp [List.foldl_cons, Array.toList_push, ih, List.append_assoc]
+
+theorem list_foldl_push_preserves_head {α : Type u} (xs : List α) (init : Array α)
+    (h_init : 0 < init.size)
+    (h_result : 0 < (xs.foldl Array.push init).size) :
+    (xs.foldl Array.push init)[0]'h_result = init[0]'h_init := by
+  induction xs generalizing init with
+  | nil =>
+    simp [List.foldl]
+  | cons x xs ih =>
+    simp only [List.foldl_cons] at h_result
+    have h_push_size : 0 < (init.push x).size := by simp [Array.size_push, h_init]
+    have h_push_preserves : (init.push x)[0]'h_push_size = init[0]'h_init := by
+      have : 0 < init.size := h_init
+      simp [Array.getElem_push, this]
+    calc (xs.foldl Array.push (init.push x))[0]'h_result
+        = (init.push x)[0]'h_push_size := ih (init.push x) h_push_size h_result
+      _ = init[0]'h_init := h_push_preserves
+
+/-- Array.foldl with Array.push preserves the head element of a nonempty init array.
+    This is used in the variable case of substStep to show typecode preservation.
+
+    **Mario's proof:** Bridge to List, induction. Array.push never modifies index 0. -/
+theorem foldl_push_preserves_head {α : Type u} (arr : Array α) (init : Array α) (start : Nat)
+    (h_init : 0 < init.size)
+    (h_result : 0 < (arr.foldl (init := init) (start := start) Array.push).size) :
+    (arr.foldl (init := init) (start := start) Array.push)[0]'h_result = init[0]'h_init := by
+  -- Convert to list and apply list version
+  let xs := arr.toList.drop start
+  have h_bridge := List.ArrayListExt.Array.foldl_eq_list_foldl_drop arr init start Array.push
+  
+  -- Rewrite the array fold to the list fold in both the hypothesis and the goal
+  simp only [h_bridge] at h_result ⊢
+  
+  -- Now the goal matches the list version exactly
+  exact list_foldl_push_preserves_head xs init h_init h_result
+
+theorem array_foldl_push_toList {α : Type u} (arr : Array α) (init : Array α) (start : Nat) :
+    (arr.foldl (init := init) (start := start) Array.push).toList =
+      init.toList ++ arr.toList.drop start := by
+  have h_bridge := List.ArrayListExt.Array.foldl_eq_list_foldl_drop arr init start Array.push
+  have h := congrArg Array.toList h_bridge
+  simpa [list_foldl_push_toList] using h
+
+theorem array_foldl_push_tail {α : Type u} (arr : Array α) (init : Array α) (start : Nat)
+    (h_nonempty : 0 < init.size) :
+    (arr.foldl (init := init) (start := start) Array.push).toList.tail =
+      init.toList.tail ++ arr.toList.drop start := by
+  have h_ne : init.toList ≠ [] := by
+    intro h_nil
+    have h_size : init.size = 0 := by
+      have hlen := congrArg List.length h_nil
+      simpa [Array.toList_length] using hlen
+    have : False := by simpa [h_size] using h_nonempty
+    cases this
+  have h_toList := array_foldl_push_toList arr init start
+  have h_tail :=
+    List.tail_append_of_ne_nil (xs := init.toList) (ys := arr.toList.drop start) h_ne
+  simpa [h_toList, h_tail]
+
+/-- Helper: foldlM with substStep starting from #[const c] preserves nonemptiness.
+
+This is a key invariant for substitution: once we have at least one symbol (the typecode),
+every substStep either pushes one symbol or appends multiple, so the result stays nonempty. -/
+theorem foldlM_substStep_nonempty_general
+    {σ : Std.HashMap String Formula}
+    (syms : List Verify.Sym) (init result : Formula)
+    (h_init : 0 < init.size)
+    (h_fold : syms.foldlM (Formula.substStep σ) init = Except.ok result) :
+    0 < result.size := by
+  -- Induction on syms using List.foldlM_cons
+  induction syms generalizing init result with
+  | nil =>
+    -- Base case: no symbols to process, result = init
+    simp only [List.foldlM_nil] at h_fold
+    injection h_fold with h_result_eq
+    subst h_result_eq
+    exact h_init
+  | cons s rest ih =>
+    -- Inductive case: process s, then fold over rest
+    simp only [List.foldlM_cons, Bind.bind, Except.bind] at h_fold
+
+    -- Case split on what substStep returns
+    cases s with
+    | const c' =>
+      -- Constant case: substStep σ init (const c') = ok (init.push (const c'))
+      have h_step : Formula.substStep σ init (Verify.Sym.const c') =
+                    Except.ok (init.push (Verify.Sym.const c')) := by
+        unfold Formula.substStep
+        rfl
+      simp only [h_step, Except.bind] at h_fold
+      -- h_fold: rest.foldlM substStep (init.push (const c')) = ok result
+      have h_push_nonempty : 0 < (init.push (Verify.Sym.const c')).size := by
+        simp [Array.size_push, h_init]
+      exact ih (init.push (Verify.Sym.const c')) result h_push_nonempty h_fold
+    | var v =>
+      unfold Formula.substStep at h_fold
+      cases h_lookup : σ[v]? with
+      | none =>
+        simp [h_lookup] at h_fold
+      | some e_val =>
+        simp [h_lookup] at h_fold
+        have h_ne : 0 < (e_val.foldl Array.push init 1).size := by
+          exact foldl_push_size_pos e_val init 1 h_init
+        exact ih _ _ h_ne h_fold
+
+theorem foldlM_substStep_nonempty
+    {σ : Std.HashMap String Formula} {c : String}
+    (syms : List Verify.Sym) (result : Formula)
+    (h_fold : syms.foldlM (Formula.substStep σ) #[Verify.Sym.const c] = Except.ok result) :
+    0 < result.size := by
+  have h_init : 0 < (#[Verify.Sym.const c] : Formula).size := by simp [Array.size]
+  exact foldlM_substStep_nonempty_general syms #[Verify.Sym.const c] result h_init h_fold
+
+/-- Helper: foldlM with substStep preserves head when init is nonempty. -/
+theorem foldlM_substStep_preserves_head_general
+    {σ : Std.HashMap String Formula}
+    (syms : List Verify.Sym) (init result : Formula)
+    (h_init : 0 < init.size)
+    (h_fold : syms.foldlM (Formula.substStep σ) init = Except.ok result)
+    (h_result : 0 < result.size) :
+    result[0]'h_result = init[0]'h_init := by
+  -- Induction on syms using List.foldlM_cons
+  induction syms generalizing init result with
+  | nil =>
+    -- Base case: no symbols to process, result = init
+    simp only [List.foldlM_nil] at h_fold
+    injection h_fold with h_result_eq
+    subst h_result_eq
+    rfl
+  | cons s rest ih =>
+    -- Inductive case: process s, then fold over rest
+    simp only [List.foldlM_cons, Bind.bind, Except.bind] at h_fold
+
+    -- Case split on what substStep returns
+    cases s with
+    | const c' =>
+      -- Constant case: substStep σ init (const c') = ok (init.push (const c'))
+      have h_step : Formula.substStep σ init (Verify.Sym.const c') =
+                    Except.ok (init.push (Verify.Sym.const c')) := by
+        unfold Formula.substStep
+        rfl
+      simp only [h_step, Except.bind] at h_fold
+      -- h_fold: rest.foldlM substStep (init.push (const c')) = ok result
+      have h_push_nonempty : 0 < (init.push (Verify.Sym.const c')).size := by
+        simp [Array.size_push, h_init]
+      have h_push_head : (init.push (Verify.Sym.const c'))[0]'h_push_nonempty = init[0]'h_init := by
+        exact Array.getElem_push_lt h_init
+      have h_rest : result[0]'h_result = (init.push (Verify.Sym.const c'))[0]'h_push_nonempty :=
+        ih (init.push (Verify.Sym.const c')) result h_push_nonempty h_fold h_result
+      rw [h_rest, h_push_head]
+    | var v =>
+      unfold Formula.substStep at h_fold
+      cases h_lookup : σ[v]? with
+      | none =>
+        simp [h_lookup] at h_fold
+      | some e_val =>
+        simp [h_lookup] at h_fold
+        have h_ne : 0 < (e_val.foldl Array.push init 1).size := by
+          exact foldl_push_size_pos e_val init 1 h_init
+        have h_foldl_head : (e_val.foldl Array.push init 1)[0]'h_ne = init[0]'h_init :=
+          foldl_push_preserves_head e_val init 1 h_init h_ne
+        have h_rest : result[0]'h_result = (e_val.foldl Array.push init 1)[0]'h_ne :=
+          ih _ _ h_ne h_fold h_result
+        rw [h_rest, h_foldl_head]
+
+/-- Helper: foldlM with substStep starting from #[const c] preserves the head constant.
+
+This establishes that substitution preserves the typecode: if we start with const c at index 0,
+every substStep (whether const push or var expansion) keeps const c at index 0. -/
+theorem foldlM_substStep_preserves_head
+    {σ : Std.HashMap String Formula} {c : String}
+    (syms : List Verify.Sym) (result : Formula)
+    (h_fold : syms.foldlM (Formula.substStep σ) #[Verify.Sym.const c] = Except.ok result) :
+    result[0]! = Verify.Sym.const c := by
+  have h_init : 0 < (#[Verify.Sym.const c] : Formula).size := by simp [Array.size]
+  have h_result_nonempty := foldlM_substStep_nonempty syms result h_fold
+  have h_result := foldlM_substStep_preserves_head_general syms #[Verify.Sym.const c] result h_init h_fold h_result_nonempty
+  -- h_result : result[0]'h_result_nonempty = #[const c][0]'h_init
+  calc result[0]!
+    _ = result[0]'h_result_nonempty := getElem!_pos ..
+    _ = (#[Verify.Sym.const c] : Formula)[0]'h_init := h_result
+    _ = Verify.Sym.const c := rfl
+
 theorem subst_preserves_head_of_const0 {σ : Std.HashMap String Formula} {f g : Formula}
     (hf : 0 < f.size) (hhead : ∃ c, f[0]! = Sym.const c) (h_sub : f.subst σ = Except.ok g) :
-    ∃ (hg : 0 < g.size), g[0]'hg = f[0]'hf :=
-  sorry
+    ∃ (hg : 0 < g.size), g[0]'hg = f[0]'hf := by
+  classical
+  obtain ⟨c, hc⟩ := hhead
+  have h_fold0 :
+      f.foldlM (Formula.substStep σ) #[] = Except.ok g := by
+    simpa [Formula.subst] using h_sub
+  have h_fold_list :
+      f.toList.foldlM (Formula.substStep σ) #[] = Except.ok g := by
+    exact
+      (Array.foldlM_toList
+          (m := Except String) (xs := f)
+          (f := Formula.substStep σ) (init := (#[] : Formula))).trans h_fold0
+  have h_list_ne : f.toList ≠ ([] : List Verify.Sym) := by
+    intro h_nil
+    have h_size_zero : f.size = 0 := by
+      have hlen := congrArg List.length h_nil
+      simpa [Array.toList_length] using hlen
+    exact Nat.lt_irrefl 0 (by simpa [h_size_zero] using hf)
+  obtain ⟨s, rest, h_list⟩ := List.exists_cons_of_ne_nil h_list_ne
+  have h_toList_head : f.toList[0]! = s := by
+    have : (s :: rest)[0]! = s := by simp
+    simpa [h_list] using this
+  have h_s_eq : s = f[0]! := by
+    have h_get := getElem!_toList f 0 hf
+    exact h_toList_head.symm.trans h_get.symm
+  have h_s_const : s = Sym.const c := by simpa [h_s_eq] using hc
+  have h_step :
+      Formula.substStep σ #[] s = Except.ok #[Sym.const c] := by
+    simp [Formula.substStep, h_s_const]
+  have h_rest :
+      rest.foldlM (Formula.substStep σ) #[Sym.const c] = Except.ok g := by
+    have h := h_fold_list
+    simpa [h_list, List.foldlM_cons, Bind.bind, Except.bind, h_step] using h
+  have hg : 0 < g.size := foldlM_substStep_nonempty (σ := σ) rest g h_rest
+  have h_g_head! : g[0]! = Sym.const c :=
+    foldlM_substStep_preserves_head (σ := σ) rest g h_rest
+  have h_g_head : g[0]'hg = Sym.const c := by
+    have h_get := getElem!_pos g 0 hg
+    exact h_get.symm.trans h_g_head!
+  have h_f_head : f[0]'hf = Sym.const c := by
+    have h_get := getElem!_pos f 0 hf
+    exact h_get.symm.trans hc
+  refine ⟨hg, ?_⟩
+  calc
+    g[0]'hg = Sym.const c := h_g_head
+    _ = f[0]'hf := h_f_head.symm
 
-/-- Tail correspondence: When substituting, the tail of the result matches
-    the flatMap of the tail with the substitution step. -/
+/-- Tail fragment contributed by a single symbol in substitution flatMap. -/
+def substTailMap (σ : Std.HashMap String Formula) (s : Verify.Sym) :
+    List Verify.Sym :=
+  match s with
+  | .const _ => [s]
+  | .var v =>
+    match σ[v]? with
+    | none => []
+    | some e => e.toList.drop 1
+
+@[simp] theorem subst_toList_eq
+    {σ : Std.HashMap String Formula}
+    {syms : List Verify.Sym} {acc result : Formula}
+    (h_fold : syms.foldlM (Formula.substStep σ) acc = Except.ok result) :
+    result.toList = acc.toList ++ syms.flatMap (substTailMap σ) := by
+  classical
+  revert acc result
+  induction syms with
+  | nil =>
+      intro acc result h_fold
+      simp [List.foldlM_nil] at h_fold
+      cases h_fold
+      simp
+  | cons s syms ih =>
+      intro acc result h_fold
+      simp [List.foldlM_cons, Bind.bind, Except.bind] at h_fold
+      cases s with
+      | const symVal =>
+          have h_step :
+              Formula.substStep σ acc (Sym.const symVal) =
+                Except.ok (acc.push (Sym.const symVal)) := by
+            simp [Formula.substStep]
+          simp [h_step] at h_fold
+          have h_rec :=
+            ih (acc := acc.push (Sym.const symVal)) (result := result) h_fold
+          simp [substTailMap, Array.toList_push, h_rec, List.flatMap_cons, List.append_assoc]
+      | var v =>
+          cases h_lookup : σ[v]? with
+          | none =>
+              simp [Formula.substStep, h_lookup] at h_fold
+          | some e =>
+              simp [Formula.substStep, h_lookup] at h_fold
+              have h_rec :=
+                ih (acc := e.foldl (init := acc) (start := 1) Array.push) (result := result) h_fold
+              have h_toList :
+                  (e.foldl (init := acc) (start := 1) Array.push).toList =
+                    acc.toList ++ e.toList.drop 1 :=
+                array_foldl_push_toList e acc 1
+              simp [substTailMap, h_lookup, h_rec, h_toList, List.flatMap_cons,
+                List.append_assoc]
+
+/-- Tail correspondence: substituting a well-formed formula preserves the tail as a flatMap. -/
 theorem subst_ok_flatMap_tail {σ : Std.HashMap String Formula} {f g : Formula}
-    (h_sub : f.subst σ = Except.ok g) :
+    (h_wf : WellFormedFormula f) (h_sub : f.subst σ = Except.ok g) :
     g.toList.tail = (f.toList.tail).flatMap fun s =>
       match s with
       | .const _ => [s]
       | .var v =>
         match σ[v]? with
         | none => []
-        | some e => e.toList.drop 1 :=
-  sorry
-
-
+        | some e => e.toList.drop 1 := by
+  classical
+  have hf : 0 < f.size := h_wf.size_pos
+  obtain ⟨c, hc⟩ := h_wf.head_const
+  have h_fold0 :
+      f.foldlM (Formula.substStep σ) #[] = Except.ok g := by
+    simpa [Formula.subst] using h_sub
+  have h_fold_list :
+      f.toList.foldlM (Formula.substStep σ) #[] = Except.ok g := by
+    exact
+      (Array.foldlM_toList
+          (m := Except String) (xs := f)
+          (f := Formula.substStep σ) (init := (#[] : Formula))).trans h_fold0
+  have h_list_ne : f.toList ≠ ([] : List Verify.Sym) := by
+    intro h_nil
+    have h_size_zero : f.size = 0 := by
+      have hlen := congrArg List.length h_nil
+      simpa [Array.toList_length] using hlen
+    exact Nat.lt_irrefl 0 (by simpa [h_size_zero] using hf)
+  obtain ⟨s, rest, h_list⟩ := List.exists_cons_of_ne_nil h_list_ne
+  have h_toList_head : f.toList[0]! = s := by
+    have : (s :: rest)[0]! = s := by simp
+    simpa [h_list] using this
+  have h_s_eq : s = f[0]! := by
+    have h_get := getElem!_toList f 0 hf
+    exact h_toList_head.symm.trans h_get.symm
+  have h_s_const : s = Sym.const c := by simpa [h_s_eq] using hc
+  have h_step :
+      Formula.substStep σ #[] s = Except.ok #[Sym.const c] := by
+    simp [Formula.substStep, h_s_const]
+  have h_rest :
+      rest.foldlM (Formula.substStep σ) #[Sym.const c] = Except.ok g := by
+    have h := h_fold_list
+    simpa [h_list, List.foldlM_cons, Bind.bind, Except.bind, h_step] using h
+  have h_toList :
+      g.toList = (#[Sym.const c] : Formula).toList ++
+        rest.flatMap (substTailMap σ) :=
+    subst_toList_eq (σ := σ) (syms := rest) (acc := #[Sym.const c]) h_rest
+  have h_rest_eq : rest = f.toList.tail := by
+    simpa [h_list]
+  have h_tail :
+      g.toList.tail = rest.flatMap (substTailMap σ) := by
+    have h_ne : ((#[Sym.const c] : Formula).toList) ≠ ([] : List Verify.Sym) := by
+      simp [Array.toList]
+    have := congrArg List.tail h_toList
+    simpa [Array.toList, List.singleton_append, List.append_assoc,
+      List.tail_append_of_ne_nil h_ne] using this
+  have h_spec :
+      g.toList.tail = (f.toList.tail).flatMap (substTailMap σ) := by
+    simpa [h_rest_eq] using h_tail
+  calc g.toList.tail
+      = (f.toList.tail).flatMap (substTailMap σ) := h_spec
+    _ = (f.toList.tail).flatMap (fun s =>
+        match s with
+        | .const _ => [s]
+        | .var v =>
+          match σ[v]? with
+          | none => []
+          | some e => e.toList.drop 1) := by rfl
 /-! ## Core Conversions (WORKING) -/
 
 /-- Convert implementation Sym to spec Sym -/
@@ -863,11 +1258,6 @@ theorem convertHyp_float_from_var (db : Verify.DB) (label : String) (f : Verify.
   have h_size_pos : 0 < f.size := by omega
   simp [toExprOpt, h_size_pos] at h_conv
 
-  -- Now h_conv has the pattern match on { typecode := ..., syms := f.toList.tail.map toSym }
-  -- For size-2 array: tail = [f[1]!], so syms = [toSym f[1]!]
-  -- From WellFormedFloat we have f[1]! = Sym.var v_str
-  -- Therefore syms = [toSym (Sym.var v_str)]
-
   -- Build the explicit equality using our proven lemma
   have h_tail : f.toList.tail = [f[1]!] := array_size2_tail_is_second_elem h_size
 
@@ -876,17 +1266,33 @@ theorem convertHyp_float_from_var (db : Verify.DB) (label : String) (f : Verify.
     rw [h_tail, h_v]
     simp [List.map]
 
-  -- Use h_syms to establish the form of the expression
-  -- h_syms : f.toList.tail.map toSym = [toSym (Sym.var v_str)]
-  -- This means the expr's syms field is exactly [toSym (Sym.var v_str)]
-  --
-  -- From h_conv and h_syms, the pattern match succeeds with:
-  -- - typecode from f[0]
-  -- - extracted variable v = toSym (Sym.var v_str)
-  --
-  -- The proof requires showing this extraction from the do-notation,
-  -- using expr_singleton_pattern_match to handle the pattern matching
-  sorry
+  -- After simplification, h_conv has form: (match toExpr f with | ⟨c, [v]⟩ => some (floating c ⟨v⟩)) = some (floating c v)
+  -- The key: toExpr f has syms field = f.toList.tail.map toSym = [toSym (Sym.var v_str)]
+
+  refine ⟨v_str, ?_⟩
+
+  -- Unfold toExpr to expose the syms field
+  unfold toExpr at h_conv
+  simp [h_size_pos] at h_conv
+
+  -- Bridge: (List.map f xs).tail = xs.tail.map f
+  have tail_map_commute : (f.toList.map toSym).tail = f.toList.tail.map toSym := by
+    cases f.toList <;> rfl
+
+  -- Now rewrite the syms field using our proven equality
+  rw [tail_map_commute, h_syms] at h_conv
+
+  -- Now h_conv is: (match Expr.mk ⟨f[0].value⟩ [toSym (Sym.var v_str)] with | ⟨c, [s]⟩ => ...) = some (floating c v)
+  -- The match reduces by rfl since we have [toSym (Sym.var v_str)] matching [s]
+  -- This gives: some (floating ⟨f[0].value⟩ ⟨toSym (Sym.var v_str)⟩) = some (floating c v)
+  simp only at h_conv
+  -- Now apply Option.some injectivity to get the Hyp equality
+  have h_hyp_eq := Option.some.inj h_conv
+  -- h_hyp_eq: Hyp.floating ⟨f[0].value⟩ ⟨toSym (Sym.var v_str)⟩ = Hyp.floating c v
+  -- Apply Hyp.floating injectivity on second argument
+  have h_var_eq : Spec.Variable.mk (toSym (Verify.Sym.var v_str)) = v := by
+    injection h_hyp_eq with _ h
+  exact h_var_eq.symm
 
 /-- Convert DV pair to spec variables. -/
 def convertDV (dv : String × String) : Spec.Variable × Spec.Variable :=
@@ -942,12 +1348,7 @@ theorem toList_mem_implies_index (arr : Array String) (x : String) (h : x ∈ ar
     have h_get : arr[i]! = arr.toList[i]! := getElem!_toList arr i h_i_bound
     rw [h_get]
     -- Now prove: arr.toList[i]! = x
-    -- This requires showing that l[i]! unfolds to l.get ⟨i, hi⟩
-    -- Both are semantically equal: bang notation checks bounds and returns l.get ⟨i, h⟩ when bounds hold
-    -- The bang notation l[i]! unfolds to l.get ⟨i, hi⟩ when bounds hi : i < l.length
-    -- Use getElem!_pos and List.get_eq_getElem to bridge the notations
-    simp only [hi, getElem!_pos, List.get_eq_getElem]
-    exact h_eq
+    sorry -- TODO: connect List.get to getElem! notation
 
 /-- **Foundational Utility: mapM membership preservation**
 
@@ -1200,13 +1601,129 @@ theorem toFrame_some_of_wfFrame (db : Verify.DB) :
 --       sorry  -- Remaining: Use well-formedness to look up the formula at lbl
 --
 
-/-- Variables extracted from toFrame come from Sym.var, not Sym.const. -/
+/-- Variables extracted from toFrame come from Sym.var, not Sym.const.
+
+    **Proof strategy:**
+    1. fr_spec.vars = fr_spec.mand.filterMap (extract variables from floating hyps)
+    2. By List.mem_filterMap: v ∈ vars means ∃ h ∈ mand with h = Hyp.floating c v
+    3. By List.mapM_mem: h ∈ mand means ∃ lbl ∈ fr_impl.hyps with convertHyp db lbl = some h
+    4. By WellFormedFrame: lbl has WellFormedFloat formula
+    5. By convertHyp_float_from_var: v = Variable.mk (toSym (Sym.var v_str))
+    6. Therefore v ≠ Variable.mk (toSym (Sym.const c')) -/
 theorem toFrame_vars_from_var (db : Verify.DB) (fr_impl : Verify.Frame) (fr_spec : Spec.Frame)
     (h_wf : WellFormedFrame db fr_impl)
     (h_conv : toFrame db fr_impl = some fr_spec) :
     ∀ v ∈ fr_spec.vars, ∃ s, v = Spec.Variable.mk s ∧
-                               ∀ c', s ≠ toSym (Verify.Sym.const c') :=
-  sorry
+                               ∀ c', s ≠ toSym (Verify.Sym.const c') := by
+  intro v h_v_in_vars
+
+  -- Unfold Frame.vars: it's filterMap extracting variables from floating hypotheses
+  unfold Spec.Frame.vars at h_v_in_vars
+
+  -- By List.mem_filterMap: ∃ h ∈ fr_spec.mand, (match h with | floating _ v => some v | _ => none) = some v
+  simp [List.mem_filterMap] at h_v_in_vars
+  obtain ⟨h, h_in_mand, h_match⟩ := h_v_in_vars
+
+  -- The match only succeeds for floating hypotheses
+  cases h with
+  | essential _ =>
+    -- match (essential _) = none ≠ some v
+    simp at h_match
+  | floating c_type v_hyp =>
+    -- match (floating c_type v_hyp) = some v_hyp = some v
+    simp at h_match
+    -- h_match: v_hyp = v, so v comes from a floating hypothesis
+    rw [← h_match]
+
+    -- Now trace back to where this floating hypothesis came from
+    -- toFrame builds mand via mapM (convertHyp db) on fr_impl.hyps
+    unfold toFrame at h_conv
+    simp [Option.bind_eq_bind, Option.pure_def] at h_conv
+
+    -- h_conv has form: (do hyps_spec ← mapM (convertHyp db) fr_impl.hyps.toList; pure ⟨hyps_spec, ...⟩) = some fr_spec
+    -- This means: ∃ hyps_spec, mapM... = some hyps_spec ∧ fr_spec = ⟨hyps_spec, ...⟩
+    cases h_mapM_res : fr_impl.hyps.toList.mapM (convertHyp db) with
+    | none =>
+      -- mapM returned none, but h_conv says toFrame succeeded - contradiction
+      rw [h_mapM_res] at h_conv
+      simp at h_conv
+    | some hyps_spec =>
+      -- mapM succeeded with hyps_spec
+      rw [h_mapM_res] at h_conv
+      simp at h_conv
+      -- Now h_conv: fr_spec = ⟨hyps_spec, fr_impl.dj.toList.map convertDV⟩
+      cases h_conv
+      -- Now fr_spec.mand = hyps_spec
+
+      -- Now h_in_mand: Hyp.floating c_type v_hyp ∈ hyps_spec
+      -- By List.mapM_mem: ∃ lbl ∈ fr_impl.hyps.toList, convertHyp db lbl = some (floating c_type v_hyp)
+      obtain ⟨lbl, h_lbl_mem, h_convertHyp⟩ := List.mapM_mem (convertHyp db) fr_impl.hyps.toList hyps_spec _ h_mapM_res h_in_mand
+
+      -- Use WellFormedFrame to show the hypothesis at lbl is well-formed
+      obtain ⟨h_hypOK, _⟩ := h_wf
+
+      -- lbl ∈ fr_impl.hyps.toList means ∃ i, fr_impl.hyps[i]! = lbl
+      -- Use List.mem_iff_get to convert membership to indexed form
+      have h_lbl_indexed : ∃ (i : Fin fr_impl.hyps.toList.length), fr_impl.hyps.toList.get i = lbl := by
+        exact List.mem_iff_get.mp h_lbl_mem
+      obtain ⟨⟨i, hi⟩, h_lbl_get⟩ := h_lbl_indexed
+      -- Convert list index to array index
+      have hi_arr : i < fr_impl.hyps.size := by simpa using hi
+      -- Bridge: fr_impl.hyps.toList.get i = fr_impl.hyps[i]!
+      have h_lbl_eq : lbl = fr_impl.hyps[i]! := by
+        rw [← h_lbl_get]
+        simp [Array.getElem!_toList, hi_arr]
+
+      -- Apply HypOK to get well-formedness
+      have h_ok := h_hypOK i hi_arr
+      -- h_ok is about fr_impl.hyps[i]!, which equals lbl
+
+      -- HypOK gives us: ∃ ess f lbl', db.find? (fr_impl.hyps[i]!) = some (.hyp ess f lbl') ∧ ...
+      obtain ⟨ess, f, lbl', h_find_arr, h_float_wf, h_ess_wf⟩ := h_ok
+      -- Since lbl = fr_impl.hyps[i]!, we have db.find? lbl = db.find? (fr_impl.hyps[i]!)
+      have h_find : db.find? lbl = some (.hyp ess f lbl') := by
+        rw [h_lbl_eq, getElem!_pos _ i hi_arr]
+        exact h_find_arr
+
+      -- convertHyp succeeded with floating result, so ess = false
+      -- (if ess = true, convertHyp would produce essential, not floating)
+      -- Prove by cases on ess
+      have h_ess_false : ess = false := by
+        cases ess with
+        | true =>
+          -- If ess = true, convertHyp produces Hyp.essential, not Hyp.floating
+          sorry -- TODO: contradiction between essential and floating
+        | false =>
+          -- ess = false, done
+          rfl
+
+      -- Now we have h_float_wf : false = false → WellFormedFloat f
+      have h_wf_float : WellFormedFloat f := h_float_wf h_ess_false
+
+      -- Apply convertHyp_float_from_var to extract the Sym.var origin
+      -- Need to rewrite h_find with ess = false
+      have h_find_false : db.find? lbl = some (.hyp false f lbl') := by
+        rw [h_ess_false] at h_find
+        exact h_find
+      obtain ⟨v_str, h_v_from_var⟩ := convertHyp_float_from_var db lbl f lbl' c_type v_hyp h_wf_float h_find_false h_convertHyp
+
+      -- Now we have v_hyp = Variable.mk (toSym (Sym.var v_str))
+      refine ⟨toSym (Verify.Sym.var v_str), h_v_from_var, ?_⟩
+
+      -- Show ∀ c', toSym (Sym.var v_str) ≠ toSym (Sym.const c')
+      intro c'
+      intro h_eq
+      -- h_eq: toSym (Sym.var v_str) = toSym (Sym.const c')
+      -- Since toSym s = s.value: v_str = c'
+      -- To prove v_str ≠ c' requires: Metamath variable/constant namespace disjointness
+      --
+      -- **MISSING CONSTRAINT**: In Metamath spec (§4.1.2), $v and $c declare disjoint namespaces.
+      -- A string cannot be both a variable name and a constant name.
+      -- This is a fundamental property of well-formed Metamath databases but not currently
+      -- modeled in our WellFormedness predicates.
+      --
+      -- **SOLUTION**: Add to WellFormedDB: ∀ v c, (v declared as var) → (c declared as const) → v ≠ c
+      sorry  -- AXIOM NEEDED: Metamath variable and constant namespaces are disjoint
 
 /-- ✅ Phase 4: Convert DB to spec Database (IMPLEMENTED) -/
 def toDatabase (db : Verify.DB) : Option Spec.Database :=
@@ -2039,6 +2556,7 @@ theorem subst_correspondence
     (σ_impl : Std.HashMap String Verify.Formula)
     (vars : List Spec.Variable) (σ_spec : Spec.Variable → Spec.Expr)
     (h_toExpr : toExprOpt f_impl = some e_spec)
+    (h_wf_formula : WellFormedFormula f_impl)
     (h_match : ∀ v ∈ vars, ∃ f_v, σ_impl[v.v]? = some f_v ∧ toExpr f_v = σ_spec v)
     (h_vars_from_var : ∀ v ∈ vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c')) :
   ∀ concl_impl, f_impl.subst σ_impl = Except.ok concl_impl →
@@ -2072,7 +2590,7 @@ theorem subst_correspondence
     -- Tail/syms correspondence
     have h_tail : (concl_impl.toList.tail.map toSym) = (Spec.applySubst vars σ_spec e_spec).syms := by
       -- Use the axiom subst_ok_flatMap_tail to get impl behavior
-      have h_impl_tail := subst_ok_flatMap_tail h_subst
+      have h_impl_tail := subst_ok_flatMap_tail h_wf_formula h_subst
 
       -- h_impl_tail: concl_impl.toList.tail = f_impl.toList.tail.flatMap (fun s => ...)
       rw [h_impl_tail]
@@ -3086,6 +3604,7 @@ theorem assert_step_ok
   db.find? label = some (Verify.Object.assert f_impl fr_impl label) →
   toFrame db fr_impl = some fr_assert →
   toExprOpt f_impl = some e_assert →
+  WellFormedFormula f_impl →
   Γ label = some (fr_assert, e_assert) →
   Verify.DB.stepNormal db pr label = Except.ok pr' →
   ∃ (stack_new : List Spec.Expr) (e_conclusion : Spec.Expr),
@@ -3093,7 +3612,7 @@ theorem assert_step_ok
     -- Stack transformation: pop "needed" hypotheses, push conclusion
     (∃ needed : List Spec.Expr,
       stack_new = (stack_spec.dropLastN fr_impl.hyps.size) ++ [e_conclusion]) := by
-  intro inv h_wf h_find h_fr_assert h_expr h_db_lookup h_step
+  intro inv h_frame_wf h_find h_fr_assert h_expr h_formula_wf h_db_lookup h_step
 
   -- Unfold stepNormal to expose stepAssert
   unfold Verify.DB.stepNormal at h_step
@@ -3194,7 +3713,7 @@ theorem assert_step_ok
 
       -- Derive h_vars_from_var from well-formedness
       have h_vars_from_var : ∀ v ∈ fr_assert.vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c') :=
-        toFrame_vars_from_var db fr_impl fr_assert h_wf h_fr_assert
+        toFrame_vars_from_var db fr_impl fr_assert h_frame_wf h_fr_assert
 
       -- Now extract the rest: DV checks, substitution, final state
       -- h_step currently has form: do { checkHyp; DV-loop; subst; pure } = ok pr'
@@ -3224,7 +3743,7 @@ theorem assert_step_ok
           -- Apply subst_correspondence to show toExpr concl_impl = e_conclusion
           have h_concl_eq : toExpr concl_impl = e_conclusion :=
             subst_correspondence f_impl e_assert σ_impl fr_assert.vars σ_typed.σ
-              h_expr h_match h_vars_from_var concl_impl h_subst_res
+              h_expr h_formula_wf h_match h_vars_from_var concl_impl h_subst_res
 
           -- Use subst to replace pr' with the record update
           subst h_step
