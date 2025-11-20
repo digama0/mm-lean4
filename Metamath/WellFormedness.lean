@@ -56,7 +56,16 @@ def WellFormedDB (db : DB) : Prop :=
     match obj with
     | .hyp ess f _   => (if ess then WellFormedFormula f else WellFormedFloat f)
     | .assert f fr _ => WellFormedFormula f ∧ WellFormedFrame db fr
+    | .var v         => v = lbl  -- Invariant: var labels = var names
     | _              => True)
+
+theorem var_label_eq_name_of_db
+    {db : DB} {lbl v : String}
+    (h_db : WellFormedDB db)
+    (h_find : db.find? lbl = some (Object.var v)) :
+    v = lbl := by
+  have h := h_db.2 lbl (Object.var v) h_find
+  exact h
 
 theorem assert_formula_wf_of_db
     {db : DB} {lbl name : String} {f : Formula} {fr : Frame}

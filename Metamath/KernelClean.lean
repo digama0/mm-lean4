@@ -3182,6 +3182,165 @@ theorem checkHyp_operational_semantics
     sorry  -- TODO: Get from parser invariants (Phase 3) - UniqueFloatVars
   exact checkHyp_operational_general db hyps stack off 0 ∅ σ_impl h_wf h_stack_wf h_unique h_empty h_checkHyp
 
+/-- **Generalized operational semantics**: checkHyp loop alignment.
+
+When `checkHyp db hyps stack off i σ_in` succeeds with result `σ_out`, this establishes
+the correspondence between stack values and substitution for all indices from i onwards.
+
+**Key insight** (from Codex): We must generalize over the loop index `i` and the current
+substitution `σ_in` to make the induction work. The recursive calls produce `(i+1, σ')`,
+so without this generalization the IH never applies.
+
+**Proof strategy**: Induction on `hyps.size - i` (the fuel/remaining iterations).
+- When `i < hyps.size`: use checkHyp_step_hyp_false/true to expose the recursion
+- For floats: the inserted value propagates to σ_out
+- For essentials: the subst guard ensures the stack value matches
+
+This is the workhorse lemma; the simpler checkHyp_stack_alignment is a corollary. -/
+theorem checkHyp_loop_alignment
+    (db : Verify.DB) (hyps : Array String)
+    (stack : Array Verify.Formula)
+    (off : {off : Nat // off + hyps.size = stack.size})
+    (i : Nat) (σ_in σ_out : Std.HashMap String Verify.Formula)
+    (h_ok : Verify.DB.checkHyp db hyps stack off i σ_in = Except.ok σ_out)
+    (k : Nat) (hk : i ≤ k) (hk_bound : k < hyps.size) :
+  -- For all k ≥ i, the stack value at k corresponds to what's in σ_out
+  (∀ f lbl, db.find? hyps[k]! = some (.hyp false f lbl) →
+      f.size ≥ 2 →
+      f[0]! == stack[off.1 + k]![0]! = true →
+      σ_out[f[1]!.value]? = some (stack[off.1 + k]!)) ∧
+  (∀ f lbl, db.find? hyps[k]! = some (.hyp true f lbl) →
+      f[0]! == stack[off.1 + k]![0]! = true →
+      Verify.Formula.subst σ_out f = Except.ok (stack[off.1 + k]!)) := by
+  -- Induction on fuel = hyps.size - i
+  generalize h_fuel : hyps.size - i = fuel
+  revert i σ_in σ_out h_ok k hk hk_bound h_fuel
+  induction fuel with
+  | zero =>
+      -- Base case: i = hyps.size (no iterations left)
+      intro i σ_in σ_out h_ok k hik hk_bound h_fuel
+      -- If i = hyps.size, then k < hyps.size and i ≤ k is impossible
+      omega
+  | succ fuel' IH =>
+      intro i σ_in σ_out h_ok k hik hk_bound h_fuel
+      -- We have i < hyps.size (since fuel > 0)
+      have hi_lt : i < hyps.size := by omega
+
+      -- Split on whether k = i or k > i
+      by_cases hki : k = i
+      · -- Case: k = i (process current hypothesis at index i)
+        subst hki
+        -- Now k = i, so we need to show the property for this specific index
+        -- Split on what hyps[k] is (which is now hyps[i])
+        cases h_find_k : db.find? hyps[k] with
+        | none =>
+            -- No hypothesis found; shouldn't happen with well-formed frames
+            sorry -- TODO: needs well-formedness assumption
+        | some obj =>
+          cases obj with
+          | const _ => sorry  -- TODO: needs well-formedness (hyps only contain hyp objects)
+          | var _ => sorry    -- TODO: needs well-formedness
+          | assert _ _ _ => sorry  -- TODO: needs well-formedness
+          | hyp ess f lbl =>
+            -- Now we know hyps[k] = .hyp ess f lbl (where k = i)
+            -- TODO: Complete k=i case - needs HashMap persistence lemmas
+            --
+            -- PROOF STRUCTURE (clear and ready to implement):
+            --
+            -- Float case (ess = false):
+            --   1. Unfold checkHyp at k: h_step := checkHyp_step_hyp_false
+            --   2. After split: h_ok : checkHyp (k+1) (σ_in.insert f[1]!.value stack[off+k]!) = .ok σ_out
+            --   3. LEMMA NEEDED: HashMap.insert_persists
+            --      If checkHyp i σ_in.insert v val) = .ok σ_out, then σ_out[v]? = some val
+            --   4. Apply lemma: σ_out[f[1]!.value]? = some stack[off+k]!  ✓
+            --
+            -- Essential case (ess = true):
+            --   1. Unfold checkHyp at k: h_step := checkHyp_step_hyp_true
+            --   2. Have: f.subst σ_in = .ok s and s == stack[off+k]! = true
+            --   3. After split: h_ok : checkHyp (k+1) σ_in = .ok σ_out
+            --   4. LEMMA NEEDED: HashMap.persists
+            --      If checkHyp i σ_in = .ok σ_out, then ∀v ∈ σ_in, σ_out[v] = σ_in[v]
+            --   5. Apply lemma: f.subst σ_out = f.subst σ_in = .ok stack[off+k]!  ✓
+            --
+            -- Both cases also need to handle vacuous branches (float vs essential mismatch)
+            -- which are proved by injection on h_find_k vs h_find'.
+            sorry
+      · -- Case: k > i (use induction hypothesis)
+        -- Codex's advice: advance one iteration using step lemma, then apply IH
+        have hi_valid : i < hyps.size := by omega
+        -- Split on what hyps[i] is to use the step lemma
+        cases h_find_i : db.find? hyps[i] with
+        | none =>
+            -- No hypothesis found; shouldn't happen with well-formed frames
+            sorry
+        | some obj =>
+          cases obj with
+          | const _ => sorry  -- Not a hyp
+          | var _ => sorry    -- Not a hyp
+          | assert _ _ _ => sorry  -- Not a hyp
+          | hyp ess f lbl =>
+            cases ess
+            · -- Float case at i
+              have h_step := DB.checkHyp_step_hyp_false db hyps stack off i σ_in f lbl hi_valid h_find_i
+              rw [h_step] at h_ok
+              split at h_ok
+              · -- Typecode check passed: proceed to checkHyp (i+1) σ_next
+                rename_i h_tc
+                -- Apply IH with i+1, σ_next = σ_in.insert f[1]!.value stack[off+i]!, k
+                have h_fuel' : hyps.size - (i+1) = fuel' := by omega
+                have h_ik : i + 1 ≤ k := by omega
+                exact IH (i+1) (σ_in.insert f[1]!.value (stack[off.1 + i]!)) σ_out h_ok k h_ik hk_bound h_fuel'
+              · -- Typecode check failed: contradiction (h_ok : .error ... = .ok σ_out)
+                simp at h_ok
+            · -- Essential case at i
+              have h_step := DB.checkHyp_step_hyp_true db hyps stack off i σ_in f lbl hi_valid h_find_i
+              rw [h_step] at h_ok
+              split at h_ok
+              · -- Typecode check passed: h_ok is now the match expression
+                -- Split on the match f.subst σ_in
+                generalize h_eq : f.subst σ_in = subst_result at h_ok
+                cases subst_result with
+                | error e =>
+                    -- h_ok : .error e = .ok σ_out (contradiction)
+                    simp at h_ok
+                | ok s =>
+                    -- h_ok : (if s == stack[...] then checkHyp ... else .error ...) = .ok σ_out
+                    simp at h_ok
+                    split at h_ok
+                    · -- Substitution matches stack: proceed to checkHyp (i+1) σ_in
+                      -- Apply IH with i+1, σ_in (same substitution), k
+                      have h_fuel' : hyps.size - (i+1) = fuel' := by omega
+                      have h_ik : i + 1 ≤ k := by omega
+                      exact IH (i+1) σ_in σ_out h_ok k h_ik hk_bound h_fuel'
+                    · -- Substitution doesn't match: contradiction (h_ok : .error ... = .ok σ_out)
+                      simp at h_ok
+              · -- Typecode check failed: contradiction (h_ok : .error ... = .ok σ_out)
+                simp at h_ok
+
+/-- **Operational semantics**: checkHyp aligns stack values with substitution entries.
+
+This is the main usable lemma, derived from checkHyp_loop_alignment by instantiating
+with i=0 and σ_in=∅ (the initial call to checkHyp).
+
+When `checkHyp` succeeds starting from index 0 with empty substitution, every hypothesis
+index has its stack value properly represented in the final substitution. -/
+theorem checkHyp_stack_alignment
+    (db : Verify.DB) (hyps : Array String)
+    (stack : Array Verify.Formula)
+    (off : {off : Nat // off + hyps.size = stack.size})
+    (σ_impl : Std.HashMap String Verify.Formula)
+    (h_ok : Verify.DB.checkHyp db hyps stack off 0 ∅ = Except.ok σ_impl)
+    (i : Nat) (hi : i < hyps.size) :
+  (∀ f lbl, db.find? hyps[i]! = some (.hyp false f lbl) →
+      f.size ≥ 2 →
+      f[0]! == stack[off.1 + i]![0]! = true →
+      σ_impl[f[1]!.value]? = some (stack[off.1 + i]!)) ∧
+  (∀ f lbl, db.find? hyps[i]! = some (.hyp true f lbl) →
+      f[0]! == stack[off.1 + i]![0]! = true →
+      Verify.Formula.subst σ_impl f = Except.ok (stack[off.1 + i]!)) := by
+  -- Apply the generalized loop lemma with i=0, σ_in=∅, k=i
+  exact checkHyp_loop_alignment db hyps stack off 0 ∅ σ_impl h_ok i (Nat.zero_le i) hi
+
 /-- ✅ THEOREM (AXIOM 2 ELIMINATED): checkHyp validates float typecodes.
 
 When checkHyp succeeds starting from empty substitution, every floating hypothesis
