@@ -159,7 +159,7 @@ theorem mkError_has_error (db : DB) (pos : Pos) (msg : String) :
     then we didn't hit any error paths -/
 theorem insert_success_no_mkError
     (db : DB) (pos : Pos) (l : String) (obj : String → Object)
-    (h_no_err_before : db.error? = none)
+    (_h_no_err_before : db.error? = none)
     (h_no_err_after : (db.insert pos l obj).error? = none) :
     -- If insert succeeded, we took the success path (no mkError calls)
     ∀ msg, (db.insert pos l obj) ≠ db.mkError pos msg := by
@@ -178,7 +178,7 @@ theorem insert_new_object_updates
     (db.insert pos l obj).objects = db.objects.insert l (obj l) := by
   unfold DB.insert DB.error DB.mkError at *
   -- Case split on obj l
-  split <;> split <;> simp_all [h_no_find]
+  split <;> split <;> simp_all
 
 /-- When insert succeeds (no error after), the objects map was updated.
     Note: This doesn't hold when inserting a var that already exists as a var
@@ -213,7 +213,7 @@ theorem insert_success_objects_updated
 
     -- Now unfold insert and show it calls mkError or contradicts h_not_var_dup
     unfold DB.insert DB.error DB.mkError at h_no_err_after
-    simp only [h_o, h_no_err_before] at h_no_err_after
+    simp only at h_no_err_after
 
     -- The key insight: After unfolding with h_o (found existing object),
     -- the only way to avoid mkError is if ok=true (both are vars)
@@ -907,7 +907,7 @@ preserve database well-formedness.
 -/
 
 /-- Database operations that preserve structural invariants -/
-inductive StructurePreservingOp : (DB → DB) → Prop where
+inductive StructurePreservingOp (db : DB) : (DB → DB) → Prop where
   | insert (pos : Pos) (label : String) (obj : String → Object)
       -- Validation invariant: object being inserted is well-formed
       (h_validated : match obj label with
@@ -918,21 +918,22 @@ inductive StructurePreservingOp : (DB → DB) → Prop where
         | _              => True)
       -- Function invariant: if obj constructs vars, they satisfy label=name (for ALL labels!)
       (h_obj_var_names_match : ∀ lbl v, obj lbl = .var v → v = lbl)
-      -- DB Freshness invariant: label not already in database (for any DB)
-      (h_fresh_db : ∀ (db : DB), db.find? label = none)
-      -- Frame freshness invariant: label not in current frame (for any DB)
-      (h_fresh_label : ∀ (db : DB) (i : Nat) (hi : i < db.frame.hyps.size),
+      -- DB Freshness invariant: label not already in THIS database
+      (h_fresh_db : db.find? label = none)
+      -- Frame freshness invariant: label not in THIS current frame
+      (h_fresh_label : ∀ (i : Nat) (hi : i < db.frame.hyps.size),
         (db.frame.hyps[i]'hi) ≠ label)
-      -- Freshness invariant: label not in any assertion frame (for any DB)
-      (h_fresh_in_asserts : ∀ (db : DB) (lbl : String) (fmla : Formula) (fr_assert : Frame) (name : String),
+      -- Freshness invariant: label not in any assertion frame in THIS DB
+      (h_fresh_in_asserts : ∀ (lbl : String) (fmla : Formula) (fr_assert : Frame) (name : String),
         db.find? lbl = some (.assert fmla fr_assert name) →
         ∀ (i : Nat) (hi : i < fr_assert.hyps.size), (fr_assert.hyps[i]'hi) ≠ label) :
-      StructurePreservingOp (fun db => db.insert pos label obj)
-  | pushScope : StructurePreservingOp (fun db => db.pushScope)
-  | popScope (pos : Pos) : StructurePreservingOp (fun db => db.popScope pos)
+      StructurePreservingOp db (fun db' => db'.insert pos label obj)
+  | pushScope : StructurePreservingOp db (fun db' => db'.pushScope)
+  | popScope (pos : Pos) : StructurePreservingOp db (fun db' => db'.popScope pos)
   | withFrame (f : Frame → Frame)
-      (h_preserves : ∀ db fr, WellFormedFrame db fr → WellFormedFrame db (f fr)) :
-      StructurePreservingOp (fun db => db.withFrame f)
+      (h_preserves : ∀ db_any fr, WellFormedFrame db_any fr → WellFormedFrame db_any (f fr)) :
+      StructurePreservingOp db (fun db' => db'.withFrame f)
+  | id : StructurePreservingOp db id
 
 /-- **Main Theorem**: Structure-preserving operations maintain WellFormedDB.
 
@@ -943,8 +944,8 @@ This is the KEY composition theorem that ties together all parser invariants.
 -/
 theorem structure_preserving_maintains_wf
     {op : DB → DB}
-    (h_struct : StructurePreservingOp op)
     (db : DB)
+    (h_struct : StructurePreservingOp db op)
     (h_wf : WellFormedDB db)
     (h_no_err_before : db.error? = none)
     (h_no_err_after : (op db).error? = none) :
@@ -972,16 +973,15 @@ theorem structure_preserving_maintains_wf
             -- Establish h_not_var_dup using h_fresh_db
             have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
               intro ⟨v_dup, _, h_find_old⟩
-              have h_fresh := h_fresh_db db
-              rw [h_find_old] at h_fresh
-              cases h_fresh
+              rw [h_find_old] at h_fresh_db
+              cases h_fresh_db
 
             have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
               intro lbl v_old h_find
               exact var_label_eq_name_of_db ⟨h_frame_wf, h_objs_wf⟩ h_find
 
             exact insert_preserves_frame_wf db pos label obj db.frame
-              h_frame_wf (h_fresh_label db) h_no_err_before h_no_err_after
+              h_frame_wf h_fresh_label h_no_err_before h_no_err_after
               h_not_var_dup h_var_inv h_obj_var_names_match
 
           · -- Part 2: All objects still WF
@@ -994,9 +994,8 @@ theorem structure_preserving_maintains_wf
               -- Establish h_not_var_dup (same as Part 1)
               have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                 intro ⟨v_dup, _, h_find_old⟩
-                have h_fresh := h_fresh_db db
-                rw [h_find_old] at h_fresh
-                cases h_fresh
+                rw [h_find_old] at h_fresh_db
+                cases h_fresh_db
 
               have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                 intro lbl v_old h_find
@@ -1031,9 +1030,8 @@ theorem structure_preserving_maintains_wf
 
               have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                 intro ⟨v_dup, _, h_find_old⟩
-                have h_fresh := h_fresh_db db
-                rw [h_find_old] at h_fresh
-                cases h_fresh
+                rw [h_find_old] at h_fresh_db
+                cases h_fresh_db
 
               have h_find_unchanged := insert_success_find?_ne db pos label lbl obj h_eq
                 h_no_err_before h_no_err_after h_not_var_dup h_var_inv h_obj_inv
@@ -1062,7 +1060,7 @@ theorem structure_preserving_maintains_wf
                       exact h_find'
                     have h_fresh_fr : ∀ i (hi : i < fr'.hyps.size), (fr'.hyps[i]'hi) ≠ label := by
                       intro i hi
-                      exact h_fresh_in_asserts db lbl f' fr' name' h_find'_assert i hi
+                      exact h_fresh_in_asserts lbl f' fr' name' h_find'_assert i hi
                     exact insert_preserves_frame_wf db pos label obj fr'
                       h_fr_wf_old h_fresh_fr h_no_err_before h_no_err_after
                       h_not_var_dup h_var_inv h_obj_inv
@@ -1087,9 +1085,8 @@ theorem structure_preserving_maintains_wf
             -- First establish h_not_var_dup for insert_preserves_frame_wf
             have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
               intro ⟨v_dup, _, h_find_old⟩
-              have h_fresh := h_fresh_db db
-              rw [h_find_old] at h_fresh
-              cases h_fresh
+              rw [h_find_old] at h_fresh_db
+              cases h_fresh_db
 
             have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
               intro lbl v_old h_find
@@ -1097,7 +1094,7 @@ theorem structure_preserving_maintains_wf
 
             -- Apply insert_preserves_frame_wf
             exact insert_preserves_frame_wf db pos label obj db.frame
-              h_frame_wf (h_fresh_label db) h_no_err_before h_no_err_after
+              h_frame_wf h_fresh_label h_no_err_before h_no_err_after
               h_not_var_dup h_var_inv h_obj_var_names_match
 
           · -- Part 2: All objects still WF
@@ -1114,9 +1111,8 @@ theorem structure_preserving_maintains_wf
               -- Now establish that obj' = obj label = .var v
               have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                 intro ⟨v_dup, _, h_find_old⟩
-                have h_fresh := h_fresh_db db
-                rw [h_find_old] at h_fresh
-                cases h_fresh
+                rw [h_find_old] at h_fresh_db
+                cases h_fresh_db
 
               have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                 intro lbl v_old h_find
@@ -1157,10 +1153,8 @@ theorem structure_preserving_maintains_wf
 
               have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                 intro ⟨v_dup, _, h_find_old⟩
-                -- But h_fresh_db says db.find? label = none!
-                have h_fresh := h_fresh_db db
-                rw [h_find_old] at h_fresh
-                cases h_fresh
+                rw [h_find_old] at h_fresh_db
+                cases h_fresh_db
 
               have h_find_unchanged := insert_success_find?_ne db pos label lbl obj h_eq
                 h_no_err_before h_no_err_after h_not_var_dup h_var_inv h_obj_inv
@@ -1198,7 +1192,7 @@ theorem structure_preserving_maintains_wf
                       exact h_find'
                     have h_fresh_fr : ∀ i (hi : i < fr'.hyps.size), (fr'.hyps[i]'hi) ≠ label := by
                       intro i hi
-                      exact h_fresh_in_asserts db lbl f' fr' name' h_find'_assert i hi
+                      exact h_fresh_in_asserts lbl f' fr' name' h_find'_assert i hi
                     exact insert_preserves_frame_wf db pos label obj fr'
                       h_fr_wf_old h_fresh_fr h_no_err_before h_no_err_after
                       h_not_var_dup h_var_inv h_obj_inv
@@ -1222,16 +1216,15 @@ theorem structure_preserving_maintains_wf
 
                 have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                   intro ⟨v_dup, _, h_find_old⟩
-                  have h_fresh := h_fresh_db db
-                  rw [h_find_old] at h_fresh
-                  cases h_fresh
+                  rw [h_find_old] at h_fresh_db
+                  cases h_fresh_db
 
                 have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                   intro lbl v_old h_find
                   exact var_label_eq_name_of_db ⟨h_frame_wf, h_objs_wf⟩ h_find
 
                 exact insert_preserves_frame_wf db pos label obj db.frame
-                  h_frame_wf (h_fresh_label db) h_no_err_before h_no_err_after
+                  h_frame_wf h_fresh_label h_no_err_before h_no_err_after
                   h_not_var_dup h_var_inv h_obj_var_names_match
 
               · -- Part 2: All objects still WF
@@ -1242,9 +1235,8 @@ theorem structure_preserving_maintains_wf
 
                   have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                     intro ⟨v_dup, _, h_find_old⟩
-                    have h_fresh := h_fresh_db db
-                    rw [h_find_old] at h_fresh
-                    cases h_fresh
+                    rw [h_find_old] at h_fresh_db
+                    cases h_fresh_db
 
                   have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                     intro lbl v_old h_find
@@ -1277,9 +1269,8 @@ theorem structure_preserving_maintains_wf
 
                   have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                     intro ⟨v_dup, _, h_find_old⟩
-                    have h_fresh := h_fresh_db db
-                    rw [h_find_old] at h_fresh
-                    cases h_fresh
+                    rw [h_find_old] at h_fresh_db
+                    cases h_fresh_db
 
                   have h_find_unchanged := insert_success_find?_ne db pos label lbl obj h_eq
                     h_no_err_before h_no_err_after h_not_var_dup h_var_inv h_obj_inv
@@ -1307,7 +1298,7 @@ theorem structure_preserving_maintains_wf
                           exact h_find'
                         have h_fresh_fr : ∀ i (hi : i < fr'.hyps.size), (fr'.hyps[i]'hi) ≠ label := by
                           intro i hi
-                          exact h_fresh_in_asserts db lbl f' fr' name' h_find'_assert i hi
+                          exact h_fresh_in_asserts lbl f' fr' name' h_find'_assert i hi
                         exact insert_preserves_frame_wf db pos label obj fr'
                           h_fr_wf_old h_fresh_fr h_no_err_before h_no_err_after
                           h_not_var_dup h_var_inv h_obj_inv
@@ -1328,16 +1319,15 @@ theorem structure_preserving_maintains_wf
 
                 have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                   intro ⟨v_dup, _, h_find_old⟩
-                  have h_fresh := h_fresh_db db
-                  rw [h_find_old] at h_fresh
-                  cases h_fresh
+                  rw [h_find_old] at h_fresh_db
+                  cases h_fresh_db
 
                 have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                   intro lbl v_old h_find
                   exact var_label_eq_name_of_db ⟨h_frame_wf, h_objs_wf⟩ h_find
 
                 exact insert_preserves_frame_wf db pos label obj db.frame
-                  h_frame_wf (h_fresh_label db) h_no_err_before h_no_err_after
+                  h_frame_wf h_fresh_label h_no_err_before h_no_err_after
                   h_not_var_dup h_var_inv h_obj_var_names_match
 
               · -- Part 2: All objects still WF
@@ -1348,9 +1338,8 @@ theorem structure_preserving_maintains_wf
 
                   have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                     intro ⟨v_dup, _, h_find_old⟩
-                    have h_fresh := h_fresh_db db
-                    rw [h_find_old] at h_fresh
-                    cases h_fresh
+                    rw [h_find_old] at h_fresh_db
+                    cases h_fresh_db
 
                   have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                     intro lbl v_old h_find
@@ -1383,9 +1372,8 @@ theorem structure_preserving_maintains_wf
 
                   have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                     intro ⟨v_dup, _, h_find_old⟩
-                    have h_fresh := h_fresh_db db
-                    rw [h_find_old] at h_fresh
-                    cases h_fresh
+                    rw [h_find_old] at h_fresh_db
+                    cases h_fresh_db
 
                   have h_find_unchanged := insert_success_find?_ne db pos label lbl obj h_eq
                     h_no_err_before h_no_err_after h_not_var_dup h_var_inv h_obj_inv
@@ -1413,7 +1401,7 @@ theorem structure_preserving_maintains_wf
                           exact h_find'
                         have h_fresh_fr : ∀ i (hi : i < fr'.hyps.size), (fr'.hyps[i]'hi) ≠ label := by
                           intro i hi
-                          exact h_fresh_in_asserts db lbl f' fr' name' h_find'_assert i hi
+                          exact h_fresh_in_asserts lbl f' fr' name' h_find'_assert i hi
                         exact insert_preserves_frame_wf db pos label obj fr'
                           h_fr_wf_old h_fresh_fr h_no_err_before h_no_err_after
                           h_not_var_dup h_var_inv h_obj_inv
@@ -1437,16 +1425,15 @@ theorem structure_preserving_maintains_wf
 
             have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
               intro ⟨v_dup, _, h_find_old⟩
-              have h_fresh := h_fresh_db db
-              rw [h_find_old] at h_fresh
-              cases h_fresh
+              rw [h_find_old] at h_fresh_db
+              cases h_fresh_db
 
             have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
               intro lbl v h_find
               exact var_label_eq_name_of_db ⟨h_frame_wf, h_objs_wf⟩ h_find
 
             exact insert_preserves_frame_wf db pos label obj db.frame
-              h_frame_wf (h_fresh_label db) h_no_err_before h_no_err_after
+              h_frame_wf h_fresh_label h_no_err_before h_no_err_after
               h_not_var_dup h_var_inv h_obj_var_names_match
 
           · -- Part 2: All objects still WF
@@ -1457,9 +1444,8 @@ theorem structure_preserving_maintains_wf
 
               have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                 intro ⟨v_dup, _, h_find_old⟩
-                have h_fresh := h_fresh_db db
-                rw [h_find_old] at h_fresh
-                cases h_fresh
+                rw [h_find_old] at h_fresh_db
+                cases h_fresh_db
 
               have h_var_inv : ∀ lbl v, db.find? lbl = some (.var v) → v = lbl := by
                 intro lbl v h_find
@@ -1496,9 +1482,8 @@ theorem structure_preserving_maintains_wf
 
               have h_not_var_dup : ¬(∃ v_dup, obj label = .var v_dup ∧ db.find? label = some (.var v_dup)) := by
                 intro ⟨v_dup, _, h_find_old⟩
-                have h_fresh := h_fresh_db db
-                rw [h_find_old] at h_fresh
-                cases h_fresh
+                rw [h_find_old] at h_fresh_db
+                cases h_fresh_db
 
               have h_find_unchanged := insert_success_find?_ne db pos label lbl obj h_eq
                 h_no_err_before h_no_err_after h_not_var_dup h_var_inv h_obj_inv
@@ -1526,7 +1511,7 @@ theorem structure_preserving_maintains_wf
                       exact h_find'
                     have h_fresh_fr : ∀ i (hi : i < fr'.hyps.size), (fr'.hyps[i]'hi) ≠ label := by
                       intro i hi
-                      exact h_fresh_in_asserts db lbl f' fr' name' h_find'_assert i hi
+                      exact h_fresh_in_asserts lbl f' fr' name' h_find'_assert i hi
                     exact insert_preserves_frame_wf db pos label obj fr'
                       h_fr_wf_old h_fresh_fr h_no_err_before h_no_err_after
                       h_not_var_dup h_var_inv h_obj_inv
@@ -1560,21 +1545,9 @@ theorem structure_preserving_maintains_wf
       
       constructor
       · -- Part 1: Frame WF preserved
-        -- Target: WellFormedFrame (db.withFrame f) (db.withFrame f).frame
-        -- (db.withFrame f).frame = f db.frame
-        -- Also need the DB in WellFormedFrame to be (db.withFrame f)
-        
-        -- Note: WellFormedFrame depends on db.objects.
-        -- Since withFrame preserves objects, WF in (db.withFrame f) is same as WF in db
         have h_objects_eq : (db.withFrame f).objects = db.objects := rfl
-        
-        -- We know h_frame_wf : WellFormedFrame db db.frame
-        -- h_preserves gives: WellFormedFrame db (f db.frame)
         have h_new_frame_wf_db : WellFormedFrame db (f db.frame) := 
           h_preserves db db.frame h_frame_wf
-          
-        -- Now convert this to WellFormedFrame (db.withFrame f) (f db.frame)
-        -- Unfold WellFormedFrame to see dependence on objects
         unfold WellFormedFrame HypOK at h_new_frame_wf_db ⊢
         rcases h_new_frame_wf_db with ⟨h_hyp, h_unique⟩
         constructor
@@ -1582,30 +1555,21 @@ theorem structure_preserving_maintains_wf
           have h_old := h_hyp i hi
           rcases h_old with ⟨ess, fm, lbl, h_find, h_float, h_fmla⟩
           refine ⟨ess, fm, lbl, ?_, h_float, h_fmla⟩
-          -- Show lookup is same
           rw [DB.find?_def, h_objects_eq]
           exact h_find
         · intro i j hi hj h_ne fi fj lbli lblj h_fi h_fj h_sz_i h_sz_j
-          -- Translate lookups
           rw [DB.find?_def, h_objects_eq] at h_fi h_fj
           exact h_unique i j hi hj h_ne fi fj lbli lblj h_fi h_fj h_sz_i h_sz_j
 
       · -- Part 2: Objects WF preserved
         intro lbl obj h_find
-        -- Lookup in new db is same as old db
         have h_objects_eq : (db.withFrame f).objects = db.objects := rfl
         have h_find_old : db.find? lbl = some obj := by
-          -- Unfold find? to expose objects
           rw [DB.find?_def] at h_find ⊢
-          -- Use equality of objects maps
           rw [h_objects_eq] at h_find
           exact h_find
           
         have h_wf_old := h_objs_wf lbl obj h_find_old
-        
-        -- Most objects WF doesn't depend on frame
-        -- Assert objects depend on frame, but their frame is internal to the object
-        -- and WF depends on lookup in DB. Since lookup is unchanged, WF is preserved.
         cases obj with
         | const c => exact h_wf_old
         | var v => exact h_wf_old
@@ -1614,9 +1578,7 @@ theorem structure_preserving_maintains_wf
             rcases h_wf_old with ⟨h_fmla, h_fr_wf⟩
             constructor
             · exact h_fmla
-            · -- Frame WF needs to be transported to new DB
-              -- Similar logic to Part 1
-              unfold WellFormedFrame HypOK at h_fr_wf ⊢
+            · unfold WellFormedFrame HypOK at h_fr_wf ⊢
               rcases h_fr_wf with ⟨h_hyp, h_unique⟩
               constructor
               · intro i hi
@@ -1628,6 +1590,9 @@ theorem structure_preserving_maintains_wf
               · intro i j hi hj h_ne fi fj lbli lblj h_fi h_fj h_sz_i h_sz_j
                 rw [DB.find?_def, h_objects_eq] at h_fi h_fj
                 exact h_unique i j hi hj h_ne fi fj lbli lblj h_fi h_fj h_sz_i h_sz_j
+  | id =>
+      -- Case: identity operation
+      exact ⟨h_frame_wf, h_objs_wf⟩
 
 where
   wf_frame_shrink
@@ -1662,5 +1627,27 @@ where
       have h_fj' := by
         simpa [Array.shrink, hj_y, hj_orig] using h_fj
       exact h_unique' h_fi' h_fj' h_sz_i h_sz_j
+
+/-! ## Composition of Structure-Preserving Operations
+
+Sequential composition of structure-preserving operations.
+-/
+
+/-- Composing two structure-preserving operations yields a structure-preserving operation.
+    If `op1` and `op2` both preserve structure, then `op2 ∘ op1` preserves structure. -/
+theorem structure_preserving_compose
+    {op1 op2 : DB → DB}
+    (db : DB)
+    (h_op1 : StructurePreservingOp db op1)
+    (h_op2 : StructurePreservingOp (op1 db) op2)
+    (h_wf : WellFormedDB db)
+    (h_no_err_before : db.error? = none)
+    (h_no_err_mid : (op1 db).error? = none)
+    (h_no_err_after : (op2 (op1 db)).error? = none) :
+    WellFormedDB (op2 (op1 db)) := by
+  -- Apply structure_preserving_maintains_wf twice
+  have h_wf_mid : WellFormedDB (op1 db) :=
+    structure_preserving_maintains_wf db h_op1 h_wf h_no_err_before h_no_err_mid
+  exact structure_preserving_maintains_wf (op1 db) h_op2 h_wf_mid h_no_err_mid h_no_err_after
 
 end Metamath.ParserCorrectness
