@@ -7,6 +7,10 @@ package «mm-lean4» where
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.24.0"
 
+-- ATP automation (Batteries-only compatible!)
+require auto from git
+  "https://github.com/leanprover-community/lean-auto" @ "main"
+
 @[default_target]
 lean_lib Metamath where
   -- Active modules (all compile cleanly):
@@ -29,7 +33,9 @@ lean_lib Metamath where
   -- DBCaseAnalysis: Helpers for complex case analysis in DB operations
   -- CounterexampleInsertError: Proves insert with error can modify DB
   -- ParserOperations: Parser operations as StructurePreservingOps
-  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError, `Metamath.ParserInvariantsStep1, `Metamath.ParserOperations]
+  -- AutoTest: ATP automation test cases
+  -- ZipperTest: Zipperposition integration test
+  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError, `Metamath.ParserInvariantsStep1, `Metamath.ParserOperations, `Metamath.AutoTest, `Metamath.ZipperTest]
 
 @[default_target]
 lean_lib MetamathExperimental where

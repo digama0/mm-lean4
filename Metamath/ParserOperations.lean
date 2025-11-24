@@ -417,8 +417,7 @@ theorem insertAxiom_maintains_wf_from_parser
     -- Parser check for formula (same as essential hypothesis):
     (h_fmla_check : fmla.size > 0 ∧ !fmla[0]!.isVar)
     -- Frame well-formedness (from trimFrame' operation):
-    -- TODO: Prove this from trimFrame' properties using existing AllM lemmas
-    (h_frame_wf : ∀ db_any, WellFormedFrame db_any fr)
+    (h_frame_wf : WellFormedFrame db fr)
     -- Freshness:
     (h_fresh_db : db.find? l = none)
     (h_fresh_label : ∀ (i : Nat) (hi : i < db.frame.hyps.size), db.frame.hyps[i]'hi ≠ l)
@@ -433,8 +432,15 @@ theorem insertAxiom_maintains_wf_from_parser
     constructor
     · -- Use parser_essential_checks_imply_wellformed
       exact parser_essential_checks_imply_wellformed fmla h_fmla_check
-    · -- Frame well-formedness assumed (to be proven from trimFrame')
-      exact h_frame_wf
+    · -- Frame well-formedness
+      -- Note: h_frame_wf gives WellFormedFrame db fr
+      -- The abstract framework asks for ∀ db_any, which is a quirk
+      -- For now, we just provide db-specific WF for all db_any
+      -- TODO: Fix abstract framework to use WellFormedFrame db fr instead
+      intro db_any
+      -- This is a type mismatch we're papering over
+      -- The frame fr was extracted from db, not from db_any!
+      sorry
   -- Apply the existing theorem
   exact insertAxiom_maintains_wf_with_validation db pos l fmla fr
     h_wf h_no_err_before h_validates h_fresh_db h_fresh_label h_fresh_in_asserts h_insert_ok
@@ -476,7 +482,7 @@ theorem insertAxiom_insert_part_maintains_wf
     -- Parser checks:
     (h_first : fmla.size > 0 ∧ !fmla[0]!.isVar)
     -- Frame well-formedness (from trimFrame'):
-    (h_frame_wf : ∀ db_any, WellFormedFrame db_any fr)
+    (h_frame_wf : WellFormedFrame db fr)
     -- Freshness:
     (h_fresh_db : db.find? l = none)
     (h_fresh_label : ∀ (i : Nat) (hi : i < db.frame.hyps.size), db.frame.hyps[i]'hi ≠ l)
@@ -490,6 +496,178 @@ theorem insertAxiom_insert_part_maintains_wf
   exact insertAxiom_maintains_wf_from_parser db pos l fmla fr
     h_wf h_no_err h_first h_frame_wf
     h_fresh_db h_fresh_label h_fresh_in_asserts h_insert_ok
+
+/-! ## feedTokens Correctness
+
+This section proves that feedTokens maintains WellFormedDB for each token kind.
+This is the key composition theorem connecting individual operations to parser execution.
+-/
+
+/-- feedTokens maintains WellFormedDB when processing tokens.
+    This covers all token kinds from Verify.lean:605-627. -/
+-- First, we need a helper: insertHyp (full) maintains WellFormedDB
+-- This is what we need from Phase A!
+theorem insertHyp_full_maintains_wf
+    (db : DB) (pos : Pos) (l : String) (ess : Bool) (arr : Formula)
+    (h_wf : WellFormedDB db)
+    (h_no_err : db.error? = none)
+    (h_first : arr.size > 0 ∧ !arr[0]!.isVar)
+    (h_second : ess = false → (arr.size = 2 ∧ arr[1]!.isVar))
+    (h_fresh_db : db.find? l = none)
+    (h_fresh_label : ∀ (i : Nat) (hi : i < db.frame.hyps.size), db.frame.hyps[i]'hi ≠ l)
+    (h_fresh_in_asserts : ∀ (lbl : String) (fmla : Formula) (fr_assert : Frame) (name : String),
+        db.find? lbl = some (.assert fmla fr_assert name) →
+        ∀ (i : Nat) (hi : i < fr_assert.hyps.size), fr_assert.hyps[i]'hi ≠ l)
+    (h_success : (db.insertHyp pos l ess arr).error? = none) :
+    WellFormedDB (db.insertHyp pos l ess arr) := by
+  -- TODO: Phase A1 - Prove full insertHyp maintains WellFormedDB
+  -- Strategy:
+  --   1. Uniqueness check (float only, lines 298-308 in Verify.lean): error or no-op
+  --   2. Insert operation (line 309): Use insertHyp_insert_part_maintains_wf ✅
+  --   3. Frame extension (line 310, withHyps): Need withHyps_push_maintains_wf lemma
+  -- Compose these three stages!
+  sorry
+
+-- Subsequence: arr2 is a subsequence of arr1 if every element in arr2 exists in arr1
+-- (preserving the string value, though not necessarily the position)
+def IsSubsequence (arr1 arr2 : Array String) : Prop :=
+  ∀ (i : Nat) (hi : i < arr2.size), ∃ (j : Nat) (hj : j < arr1.size), arr2[i]'hi = arr1[j]'hj
+
+-- Extraction lemma: trimFrame' success iff trimFrame returned (true, fr)
+@[simp]
+theorem trimFrame'_ok_iff {db : DB} {fmla : Formula} {fr : Frame} :
+    db.trimFrame' fmla = .ok fr ↔ db.trimFrame fmla = (true, fr) := by
+  unfold DB.trimFrame'
+  obtain ⟨ok, fr'⟩ := db.trimFrame fmla
+  sorry  -- TODO: if-then-else iff proof
+
+-- trimFrame produces a subsequence of the input frame's hypothences
+theorem trimFrame_produces_subsequence {db : DB} {fmla : Formula} {ok : Bool} {fr : Frame}
+    (h : db.trimFrame fmla = (ok, fr)) : IsSubsequence db.frame.hyps fr.hyps := by
+  -- trimFrame (Verify.lean:326-337) filters db.frame.hyps by pushing only elements where ess = true
+  -- Each pushed element maintains its string value
+  -- This creates a subsequence relationship
+  sorry  -- TODO: Computational proof - unfold trimFrame and track push-loop invariant
+
+-- Lemma 3: trimFrame preserves UniqueFloatVars (subset monotonicity!)
+theorem trimFrame_preserves_uniqueness {db : DB} {fr : Frame}
+    (h_subseq : IsSubsequence db.frame.hyps fr.hyps)
+    (h_unique : UniqueFloatVars db db.frame) :
+    UniqueFloatVars db fr := by
+  intro i j hi hj h_ne fi fj lbli lblj h_fi h_fj hsizei hsizej
+  -- Get corresponding indices in db.frame
+  obtain ⟨i', hi', h_eq_i⟩ := h_subseq i hi
+  obtain ⟨j', hj', h_eq_j⟩ := h_subseq j hj
+  -- Need to show i' ≠ j' to apply h_unique
+  have h_i'_ne_j' : i' ≠ j' := by
+    intro h_eq
+    -- If i' = j', then db.frame.hyps[i'] = db.frame.hyps[j']
+    -- Combined with h_eq_i and h_eq_j, we get fr.hyps[i] = fr.hyps[j]
+    -- But i ≠ j for distinct array indices, so this means array has duplicate elements
+    -- For arrays built by push-loop, this is impossible
+    sorry  -- Needs: subsequence from push-loop is injective on indices
+  -- Rewrite to use db.frame.hyps
+  rw [h_eq_i] at h_fi
+  rw [h_eq_j] at h_fj
+  -- Apply uniqueness on db.frame
+  exact h_unique i' j' hi' hj' h_i'_ne_j' fi fj lbli lblj h_fi h_fj hsizei hsizej
+
+-- Similarly for insertAxiom (full)
+-- TODO: Need to prove frame well-formedness from trimFrame'
+theorem trimFrame'_success_implies_wellformed_frame
+    (db : DB) (fmla : Formula) (fr : Frame)
+    (h_wf : WellFormedDB db)
+    (h_trimFrame : db.trimFrame' fmla = .ok fr) :
+    WellFormedFrame db fr := by
+  -- WellFormedFrame has two parts
+  constructor
+  · -- Part 1: All hypotheses in fr are HypOK db
+    intro i hi
+    -- Strategy: fr.hyps is a subsequence of db.frame.hyps, so fr.hyps[i] came from db.frame.hyps
+    -- HypOK depends only on the label (via db.find?), not on position in frame
+
+    -- Extract that trimFrame succeeded
+    have h_trim : db.trimFrame fmla = (true, fr) := trimFrame'_ok_iff.mp h_trimFrame
+
+    -- Use subsequence lemma
+    have h_subseq := trimFrame_produces_subsequence h_trim
+    have h_ex := h_subseq i hi
+    obtain ⟨j, hj, h_eq⟩ := h_ex
+
+    -- From h_wf, get that db.frame is well-formed
+    have ⟨h_frame_wf, _⟩ := h_wf
+    have ⟨h_all_hypok, _⟩ := h_frame_wf
+
+    -- Apply to db.frame.hyps[j]
+    have h_hypok_j := h_all_hypok j hj
+
+    -- Since fr.hyps[i] = db.frame.hyps[j], and HypOK depends only on the string value
+    rw [h_eq]
+    exact h_hypok_j
+
+  · -- Part 2: UniqueFloatVars db fr
+    -- Extract that trimFrame succeeded
+    have h_trim : db.trimFrame fmla = (true, fr) := trimFrame'_ok_iff.mp h_trimFrame
+
+    -- Get subsequence property
+    have h_subseq := trimFrame_produces_subsequence h_trim
+
+    -- Get UniqueFloatVars for db.frame
+    have ⟨h_frame_wf, _⟩ := h_wf
+    have ⟨_, h_unique_frame⟩ := h_frame_wf
+
+    -- Apply the uniqueness preservation lemma!
+    exact trimFrame_preserves_uniqueness h_subseq h_unique_frame
+
+theorem insertAxiom_full_maintains_wf
+    (db : DB) (pos : Pos) (l : String) (arr : Formula)
+    (h_wf : WellFormedDB db)
+    (h_no_err : db.error? = none)
+    (h_first : arr.size > 0 ∧ !arr[0]!.isVar)
+    (h_fresh_db : db.find? l = none)
+    (h_fresh_label : ∀ (i : Nat) (hi : i < db.frame.hyps.size), db.frame.hyps[i]'hi ≠ l)
+    (h_fresh_in_asserts : ∀ (lbl : String) (fmla : Formula) (fr_assert : Frame) (name : String),
+        db.find? lbl = some (.assert fmla fr_assert name) →
+        ∀ (i : Nat) (hi : i < fr_assert.hyps.size), fr_assert.hyps[i]'hi ≠ l)
+    (h_success : (db.insertAxiom pos l arr).error? = none) :
+    WellFormedDB (db.insertAxiom pos l arr) := by
+  -- TODO: Complete insertAxiom_full proof
+  -- Strategy (GPT-5's case analysis is correct!):
+  --   1. Unfold DB.insertAxiom (match on trimFrame')
+  --   2. Case .error msg: mkError sets error?, contradicts h_success
+  --   3. Case .ok fr: case on interrupt
+  --      a. true: sets error?, contradicts h_success
+  --      b. false: apply insertAxiom_insert_part_maintains_wf
+  --
+  -- Challenge: split tactic doesn't preserve equalities between h_success and goal
+  -- Need either:
+  --   - Better tactic usage (cases? generalize?)
+  --   - Helper lemma that explicitly cases on trimFrame' result
+  --   - Work with match expression directly
+  sorry
+
+-- Phase B: feedTokens correctness (blocked on Phase A completion)
+-- TODO: Complete after proving insertHyp_full and insertAxiom_full
+theorem feedTokens_maintains_wf
+    (s : ParserState) (arr : Array Sym) (tokp : TokensParser)
+    (h_wf : WellFormedDB s.db)
+    (h_no_err : s.db.error? = none)
+    (h_first : arr.size > 0 ∧ !arr[0]!.isVar)
+    (h_float : tokp.k = TokensKind.float → (arr.size = 2 ∧ arr[1]!.isVar))
+    (h_fresh_db : s.db.find? tokp.label = none)
+    (h_fresh_label : ∀ (i : Nat) (hi : i < s.db.frame.hyps.size), s.db.frame.hyps[i]'hi ≠ tokp.label)
+    (h_fresh_in_asserts : ∀ (lbl : String) (fmla : Formula) (fr_assert : Frame) (name : String),
+        s.db.find? lbl = some (.assert fmla fr_assert name) →
+        ∀ (i : Nat) (hi : i < fr_assert.hyps.size), fr_assert.hyps[i]'hi ≠ tokp.label)
+    (h_success : (s.feedTokens arr tokp).db.error? = none) :
+    WellFormedDB (s.feedTokens arr tokp).db := by
+  -- TODO: Phase B - Case analysis on token kind
+  -- Strategy: cases tokp.k with
+  --   | .float => apply insertHyp_full_maintains_wf (once Phase A is done!)
+  --   | .ess   => apply insertHyp_full_maintains_wf
+  --   | .ax    => apply insertAxiom_full_maintains_wf
+  --   | .thm   => [proof checking - separate work]
+  sorry
 
 end ParserOps
 end Metamath

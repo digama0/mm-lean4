@@ -24,30 +24,49 @@ We prove properties at each layer using only properties from layers below.
 import Metamath.Verify
 import Metamath.WellFormedness
 import Metamath.ParserBasics
+import Std.Data.HashMap.Lemmas
 
 namespace Metamath.ParserCorrectness
 
 open Verify
 open Metamath.WF
 open Metamath.ParserBasics
+open Std
 
 /-! ## Layer 0: Foundation - HashMap and String Properties
 
 These are the bedrock - properties of data structures we rely on.
-In a fully verified system, these would come from Batteries/Std proofs.
-For now, we axiomatize the minimum necessary HashMap properties.
+They are now proven from `Std.Data.HashMap.Lemmas` and lawful BEq
+instances for strings.
 -/
 
 /-- HashMap.insert makes the key findable -/
-axiom HashMap.find?_insert_eq {α β} [BEq α] [Hashable α] (m : Std.HashMap α β) (k : α) (v : β) :
-  (m.insert k v)[k]? = some v
+@[simp] theorem HashMap.find?_insert_eq {α β} [BEq α] [Hashable α]
+    [EquivBEq α] [LawfulHashable α] [LawfulBEq α]
+    (m : Std.HashMap α β) (k : α) (v : β) :
+    (m.insert k v)[k]? = some v := by
+  simpa using (Std.HashMap.getElem?_insert_self (m := m) (k := k) (v := v))
 
 /-- HashMap.find? on different key after insert -/
-axiom HashMap.find?_insert_ne {α β} [BEq α] [Hashable α] (m : Std.HashMap α β) (k k' : α) (v : β) :
-  k ≠ k' → (m.insert k v)[k']? = m[k']?
+@[simp] theorem HashMap.find?_insert_ne {α β} [BEq α] [Hashable α]
+    [EquivBEq α] [LawfulHashable α] [LawfulBEq α]
+    (m : Std.HashMap α β) (k k' : α) (v : β) :
+    k ≠ k' → (m.insert k v)[k']? = m[k']? := by
+  intro hne
+  classical
+  have hbranch := Std.HashMap.getElem?_insert (m := m) (k := k) (a := k') (v := v)
+  cases hbeq : (k == k') <;> try simp [Std.HashMap.getElem?_insert, hbeq] at hbranch
+  · simpa [Std.HashMap.getElem?_insert, hbeq] using hbranch
+  ·
+    have hk : k = k' := LawfulBEq.eq_of_beq (a := k) (b := k') (by simpa [hbeq])
+    exact (hne hk).elim
 
 /-- BEq for String is equality -/
-axiom String.beq_eq (s₁ s₂ : String) : (s₁ == s₂) = true ↔ s₁ = s₂
+@[simp] theorem String.beq_eq (s₁ s₂ : String) : (s₁ == s₂) = true ↔ s₁ = s₂ := by
+  constructor
+  · intro h
+    exact LawfulBEq.eq_of_beq (a := s₁) (b := s₂) h
+  · intro h; cases h; simp
 
 /-! ## Layer 1: Database State - Basic DB Operations
 

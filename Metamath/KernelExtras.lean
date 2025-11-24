@@ -12,6 +12,7 @@ After Batteries 4.24.0 upgrade (November 2025):
 import Metamath.Spec
 import Metamath.Verify
 import Metamath.ArrayListExt
+import Std.Data.HashMap.Lemmas
 import Batteries.Data.List.Lemmas
 import Batteries.Data.Array.Lemmas
 
@@ -199,36 +200,35 @@ variable {α : Type _} [BEq α] [Hashable α]
 Standard HashMap property: insert followed by lookup of the same key
 returns the inserted value.
 
-**Proof strategy**: Use Std.HashMap.find?_insert (if available) or
-prove by cases on bucket structure and BEq equality.
+We rely on `Std.HashMap.getElem?_insert_self`, which is proven for any
+`EquivBEq`/`LawfulHashable` key type.
 -/
-@[simp] theorem find?_insert_self (m : Std.HashMap α β) (k : α) (v : β) :
-  (m.insert k v)[k]? = some v := by
-  -- HashMap insert followed by lookup of same key returns that value
-  -- This is a fundamental HashMap property
-  -- Proof would require Std.HashMap lemmas (not yet available in batteries)
-  -- This is axiom-free - it's a specification of HashMap behavior
-  sorry  -- AXIOM: HashMap insert/lookup same key property
-         -- TODO: Prove when Std.HashMap theorems become available
+@[simp] theorem find?_insert_self (m : Std.HashMap α β) (k : α) (v : β)
+    [EquivBEq α] [LawfulHashable α] [LawfulBEq α] :
+    (m.insert k v)[k]? = some v := by
+  simpa using (Std.HashMap.getElem?_insert_self (m := m) (k := k) (v := v))
 
 /-- Looking up a different key is unchanged by insert.
 
 Standard HashMap property: inserting at key k doesn't affect
 lookups at other keys k'.
 
-**Proof strategy**: Use Std.HashMap.find?_insert (if available) with
-inequality, or prove by cases on bucket structure.
+**Proof strategy**: Use the general `getElem?_insert` lemma and the fact
+that `k == k'` would imply `k = k'` for lawful `BEq`, contradicting `h`.
 -/
 @[simp] theorem find?_insert_ne (m : Std.HashMap α β)
-  {k k' : α} (h : k' ≠ k) (v : β) :
-  (m.insert k v)[k']? = m[k']? := by
-  -- HashMap insert at key k doesn't affect lookups at different key k'
-  -- This is a fundamental HashMap property
-  -- Proof would require Std.HashMap lemmas (not yet available in batteries)
-  sorry  -- AXIOM: HashMap insert/lookup different key property
-         -- TODO: Prove when Std.HashMap theorems become available
+    {k k' : α} (h : k' ≠ k) (v : β)
+    [EquivBEq α] [LawfulHashable α] [LawfulBEq α] :
+    (m.insert k v)[k']? = m[k']? := by
+  classical
+  have hbranch := Std.HashMap.getElem?_insert (m := m) (k := k) (a := k') (v := v)
+  cases hbeq : (k == k') <;> try simp [Std.HashMap.getElem?_insert, hbeq] at hbranch
+  · -- beq returns false, so lookup is unchanged
+    simpa [Std.HashMap.getElem?_insert, hbeq] using hbranch
+  · -- beq returns true, contradicting key inequality
+    have hk' : k = k' := LawfulBEq.eq_of_beq (a := k) (b := k') (by simpa [hbeq])
+    exact (h hk'.symm).elim
 
 end HashMap
 
 end KernelExtras
-
