@@ -47,6 +47,15 @@ namespace Metamath.ParserInvariants
 open Verify
 open Metamath.WF
 
+/-- Master theorem: successful parsing produces a well-formed database.
+    Proof pending full parser loop induction. -/
+theorem parser_success_wellformed (db : DB) :
+  db.error? = none → WellFormedDB db := by
+  -- TODO: Prove by composing individual parser invariant theorems
+  -- Each parser operation (insertHyp, feedTokens, etc.) maintains well-formedness
+  -- This is the correctness proof for the PARSER component (half the battle!)
+  sorry
+
 /-! ## Parser Behavior Lemmas
 
 These lemmas capture key properties of the parser's validation logic.
@@ -103,8 +112,7 @@ theorem float_came_from_validated_insertion
   -- Derive well-formedness from parser success
   -- This uses the "master theorem" parser_success_wellformed (line 654)
   -- which states: db.error? = none → WellFormedDB db
-  have h_wf : WF.WellFormedDB db := by
-    sorry  -- TODO: Use parser_success_wellformed once it's proven
+  have h_wf : WF.WellFormedDB db := parser_success_wellformed db h_success
 
   -- Extract the well-formedness property for this specific float
   have h_float_wf : WF.WellFormedFloat f := by
@@ -633,36 +641,6 @@ theorem my_proof (db : DB) (h_success : db.error? = none) ... := by
 
 Benefit: Explicit precondition makes assumptions clear, fewer axioms!
 -/
-
-/-! ## Parser Output Well-Formedness
-
-**Core Connector**: Parser success implies database well-formedness.
-
-If parsing succeeded (`db.error? = none`), then the database produced by the parser
-satisfies all structural well-formedness predicates used by the verifier.
-
-This theorem should be proven by composing the individual parser behavior lemmas:
-- `parser_validates_all_float_structures` (formulas have correct structure)
-- `parser_validates_float_uniqueness` (no duplicate float variables)
-- `parser_enforces_float_size` (exact size = 2 for floats)
-- `parser_enforces_constant_declaration` (constants declared before use)
-- `parser_enforces_variable_declaration` (variables declared before use)
-
-**Proof strategy**: Induction on parser operations, showing each check maintains invariants:
-- `insertHyp` checks for duplicate floats (lines 304-306 in Verify.lean)
-- `feedTokens` validates $f shape before calling insertHyp (lines 561-567)
-- `toExpr`/`toExprOpt` rely on nonempty formulas with constant heads
-- Frame construction preserves well-formedness through trimming and scoping
-
-**TODO**: Prove by analyzing Verify.lean parser code and showing invariant preservation.
-This is provable because it's about pure Lean code (HashMaps, for loops, string operations).
--/
-theorem parser_success_wellformed (db : DB) :
-  db.error? = none → WellFormedDB db := by
-  -- TODO: Prove by composing individual parser invariant theorems
-  -- Each parser operation (insertHyp, feedTokens, etc.) maintains well-formedness
-  -- This is the correctness proof for the PARSER component (half the battle!)
-  sorry
 
 end Metamath.ParserInvariants
 

@@ -14,6 +14,7 @@ The proofs work by:
 import Metamath.Verify
 import Metamath.Spec
 import Metamath.ParserInvariants
+import Metamath.WellFormedness
 import Metamath.KernelExtras
 import Batteries.Tactic.Init
 
@@ -22,7 +23,48 @@ namespace Metamath.ParserProofs
 open Verify
 open KernelExtras.HashMap
 open Std (HashMap)
+open Metamath.WF
 
+/-- Parser invariant: the working database is well-formed. -/
+def parserInvariant (db : DB) : Prop := WellFormedDB db
+
+@[simp] theorem default_frame_hyps : (default : Frame).hyps = (#[] : Array String) := rfl
+@[simp] theorem default_db_frame_hyps : (default : DB).frame.hyps = (#[] : Array String) := rfl
+@[simp] theorem default_db_objects : (default : DB).objects = ({} : HashMap String Object) := rfl
+
+/-- The initial database (empty objects/frame) is well-formed. -/
+theorem init_db_wellFormed (permissive : Bool := false) :
+    parserInvariant ({ (default : DB) with permissive := permissive } : DB) := by
+  classical
+  -- Work with a named database value.
+  let db : DB := { (default : DB) with permissive := permissive }
+  change WellFormedDB db
+  -- All components are empty in the default DB, so well-formedness is trivial.
+  unfold WellFormedDB WellFormedFrame HypOK UniqueFloatVars
+  have hhyps_size : db.frame.hyps.size = 0 := by simp [db]
+  constructor
+  · constructor
+    · intro i hi
+      -- hyps is empty, so no index is in-bounds
+      have hi0 : i < 0 := by simpa [hhyps_size] using hi
+      cases (Nat.not_lt_zero _ hi0)
+    · intro i j hi hj hneq fi fj lbli lblj hfi hfj hsize_i hsize_j
+      -- likewise, any i is out of bounds
+      have hi0 : i < 0 := by simpa [hhyps_size] using hi
+      cases (Nat.not_lt_zero _ hi0)
+  · intro lbl obj hfind
+    -- Empty objects map: find? cannot return `some obj`
+    -- hfind says lookup is `some obj`, contradicting emptiness
+    have : (none : Option Object) = some obj := by
+      simpa [DB.find?, db] using hfind
+    cases this
+
+/-- Pushing a scope does not affect well-formedness (scopes are ignored by WellFormedDB). -/
+theorem pushScope_preserves_wf {db : DB} :
+    parserInvariant db → parserInvariant db.pushScope := by
+  intro h
+  -- pushScope only changes `scopes`; frame/objects unchanged
+  simpa [parserInvariant, DB.pushScope]
 /-! ## Float Uniqueness Invariant
 
 The key invariant for proving `parser_validates_float_uniqueness`:
@@ -80,6 +122,9 @@ def db_has_unique_floats (db : DB) : Prop :=
 @[simp] theorem DB.withHyps_objects (db : DB) (f : Array String → Array String) :
   (db.withHyps f).objects = db.objects := rfl
 
+@[simp] theorem DB.withHyps_frame_hyps (db : DB) (f : Array String → Array String) :
+  (db.withHyps f).frame.hyps = f db.frame.hyps := rfl
+
 /-- Helper: withHyps preserves find? for all labels -/
 theorem DB.withHyps_find? (db : DB) (f : Array String → Array String) (l : String) :
   (db.withHyps f).find? l = db.find? l := by
@@ -94,6 +139,23 @@ theorem DB.withHyps_preserves_assertion_frames (db : DB) (f : Array String → A
   intro h
   rw [DB.withHyps_find?]
   exact h
+
+@[simp] theorem frame_has_unique_floats_withHyps (db : DB) (f : Array String → Array String) (hyps : Array String) :
+  frame_has_unique_floats (db.withHyps f) hyps = frame_has_unique_floats db hyps := by
+  apply propext
+  constructor
+  · intro h i j hi hj hneq fi fj lbli lblj hfi hfj hsi hsj
+    have hfi' : db.find? hyps[i] = some (.hyp false fi lbli) := by
+      simpa [DB.withHyps_find?] using hfi
+    have hfj' : db.find? hyps[j] = some (.hyp false fj lblj) := by
+      simpa [DB.withHyps_find?] using hfj
+    exact h i j hi hj hneq fi fj lbli lblj hfi' hfj' hsi hsj
+  · intro h i j hi hj hneq fi fj lbli lblj hfi hfj hsi hsj
+    have hfi' : (db.withHyps f).find? hyps[i] = some (.hyp false fi lbli) := by
+      simpa [DB.withHyps_find?] using hfi
+    have hfj' : (db.withHyps f).find? hyps[j] = some (.hyp false fj lblj) := by
+      simpa [DB.withHyps_find?] using hfj
+    exact h i j hi hj hneq fi fj lbli lblj hfi' hfj' hsi hsj
 
 /-- Once error is set, mkError keeps it set -/
 @[simp] theorem error_persists_mkError (db : DB) (pos : Pos) (msg : String) :
@@ -346,6 +408,40 @@ theorem insert_assert_success_implies_fresh
           exact hne h_success
         }
 
+/-- If inserting a hypothesis succeeds, the label must be fresh (no prior object at that label). -/
+theorem insert_hyp_success_implies_fresh
+  (db : DB) (pos : Pos) (l : String) (ess : Bool) (f : Formula)
+  (h_success : (db.insert pos l (.hyp ess f)).error? = none) :
+  db.find? l = none := by
+  by_contra h_exists
+  obtain ⟨o, hfind⟩ := Option.ne_none_iff_exists.mp h_exists
+  unfold DB.insert at h_success
+  simp only at h_success
+  by_cases h_err : db.error
+  · -- If db already has error, insert returns db with error
+    simp [h_err] at h_success
+    have : db.error? ≠ none := by
+      cases hopt : db.error? with
+      | none => simp [DB.error, hopt] at h_err
+      | some _ => simp
+    exact this h_success
+  · -- db.error = false, so we check for duplicates
+    simp [h_err] at h_success
+    -- We are in the duplicate branch since db.find? l = some o
+    cases hfind_case : db.find? l with
+    | none =>
+        -- Contradiction with hfind
+        simp [hfind_case] at hfind
+    | some o_db =>
+        have h_success' := h_success
+        -- simplify the control flow using the known lookup
+        simp [hfind_case] at h_success'
+        -- In the duplicate branch with a hyp insertion, ok = false so mkError is called
+        -- regardless of the existing object o_db.
+        cases o_db <;> (
+          have hne := error_persists_mkError db pos s!"duplicate symbol/assert {l}"
+          exact hne h_success')
+
 /-- If `insert` succeeds, all keys different from the inserted label are preserved.
 
     GPT-5 Pro proven lemma - works for any object type.
@@ -525,100 +621,100 @@ theorem insert_find_preserved (db : DB) (pos : Pos) (l : String) (l' : String) (
   -- Use the DB-level wrapper lemma (swap inequality)
   exact DB.find?_insert_ne db pos l l' obj (Ne.symm h_ne) h_success
 
-/-- Adding an *essential* hyp (not a float) preserves the frame-level uniqueness invariant. -/
+/-- Adding an *essential* hyp (not a float) preserves the frame-level uniqueness invariant,
+    assuming the insert succeeds and the label is fresh. -/
 theorem frame_unique_floats_add_essential
   (db : DB) (hyps : Array String) (pos : Pos) (l : String) (f : Formula)
-  (h_unique : frame_has_unique_floats db hyps) :
+  (h_unique : frame_has_unique_floats db hyps)
+  (h_success : (db.insert pos l (.hyp true f)).error? = none) :
   frame_has_unique_floats (db.insert pos l (.hyp true f)) (hyps.push l) := by
   classical
   unfold frame_has_unique_floats at h_unique ⊢
   intro i j hi hj h_ne fi fj lbli lblj h_fi h_fj h_szi h_szj
-  -- Split on whether i or j is the new index = hyps.size
   have hsz : (hyps.push l).size = hyps.size + 1 := by simp
-  -- Check if i or j equals hyps.size (the new element)
+  -- Check if i or j is the newly added index
   by_cases hi_new : i = hyps.size
-  · -- i is the new index → lbli = l → find? gives .hyp true f (essential), not float
-    -- This contradicts h_fi which says it's a float (.hyp false ...)
-    -- First, simplify the array lookup: (hyps.push l)[hyps.size] = l
+  · -- i points to the newly inserted label, but hypotheses claim it's a float → contradiction
     have h_lbli : (hyps.push l)[i] = l := by simp [hi_new]
     rw [h_lbli] at h_fi
-    -- Now h_fi says: (db.insert pos l (.hyp true f)).find? l = some (.hyp false fi lbli)
-    -- Case split on whether insert succeeded
-    by_cases h_success : (db.insert pos l (.hyp true f)).error? = none
-    · -- Insert succeeded → find? l gives .hyp true f
-      have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
-      -- h_inserted: (db.insert...).find? l = some (.hyp true f l)
-      -- h_fi: (db.insert...).find? l = some (.hyp false fi lbli)
-      -- These must be equal, so .hyp true f l = .hyp false fi lbli
+    have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
+    -- Compare the two findings at label l
+    have h_obj : Object.hyp true f l = Object.hyp false fi lbli := by
       rw [h_inserted] at h_fi
-      -- Now h_fi : some (.hyp true f l) = some (.hyp false fi lbli)
-      -- This is impossible: true ≠ false in the essential flag
-      injection h_fi with h_eq
-      -- h_eq : Object.hyp true f l = Object.hyp false fi lbli
-      cases h_eq  -- Contradiction: .hyp true _ _ can't equal .hyp false _ _
-    · -- Insert failed → error set, but we also have h_fi which found a float
-      -- This case is actually impossible in practice, but we can't derive False without more context
-      -- For now, use the fact that find?_insert_self requires success
-      exfalso
-      -- We have h_fi saying we found a float at l, but we know l is the new label being added
-      -- In the frame_unique_floats_add_essential context, l is being newly added to the frame
-      -- If there's an error, the invariant might not hold, but that's the caller's problem
-      -- For this tactical proof, we accept that error cases need separate handling
-      sorry  -- Error case needs additional hypothesis about initial state
+      exact Option.some.inj h_fi
+    -- Extract contradiction on the essential flag
+    have h_bool : true = false := by
+      have h_flag := congrArg (fun o => match o with | Object.hyp b _ _ => b | _ => false) h_obj
+      simpa using h_flag
+    cases h_bool
   · by_cases hj_new : j = hyps.size
-    · -- j is the new index → similar contradiction (symmetric to i case)
+    · -- Symmetric case: j is new index
       have h_lblj : (hyps.push l)[j] = l := by simp [hj_new]
       rw [h_lblj] at h_fj
-      -- Now h_fj says: (db.insert pos l (.hyp true f)).find? l = some (.hyp false fj lblj)
-      by_cases h_success : (db.insert pos l (.hyp true f)).error? = none
-      · -- Insert succeeded → find? l gives .hyp true f
-        have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
+      have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
+      have h_obj : Object.hyp true f l = Object.hyp false fj lblj := by
         rw [h_inserted] at h_fj
-        -- h_fj : some (.hyp true f l) = some (.hyp false fj lblj)
-        injection h_fj with h_eq
-        -- h_eq : Object.hyp true f l = Object.hyp false fj lblj
-        cases h_eq  -- Contradiction: true ≠ false
-      · -- Error case (same reasoning as i case)
-        exfalso
-        sorry  -- Error case needs additional hypothesis about initial state
-    · -- Both i, j are old indices (< hyps.size)
-      have hi_old : i < hyps.size := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ (by simpa [hsz] using hi)) hi_new
-      have hj_old : j < hyps.size := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ (by simpa [hsz] using hj)) hj_new
-      -- For old indices, array lookup in push preserves original values
+        exact Option.some.inj h_fj
+      have h_bool : true = false := by
+        have h_flag := congrArg (fun o => match o with | Object.hyp b _ _ => b | _ => false) h_obj
+        simpa using h_flag
+      cases h_bool
+    · -- Both indices refer to old entries
+      have hi_lt_succ : i < hyps.size + 1 := by simpa [hsz] using hi
+      have hj_lt_succ : j < hyps.size + 1 := by simpa [hsz] using hj
+      have hi_le : i ≤ hyps.size := Nat.le_of_lt_succ hi_lt_succ
+      have hj_le : j ≤ hyps.size := Nat.le_of_lt_succ hj_lt_succ
+      have hi_old : i < hyps.size := by
+        rcases Nat.lt_or_eq_of_le hi_le with hi_lt | hi_eq
+        · exact hi_lt
+        · exact (hi_new hi_eq).elim
+      have hj_old : j < hyps.size := by
+        rcases Nat.lt_or_eq_of_le hj_le with hj_lt | hj_eq
+        · exact hj_lt
+        · exact (hj_new hj_eq).elim
+      -- Preserve original labels for old indices
       have h_lbli_old : (hyps.push l)[i] = hyps[i] := by
-        simp only [Array.getElem_push_lt hi_old]
+        simp [Array.getElem_push_lt, hi_old]
       have h_lblj_old : (hyps.push l)[j] = hyps[j] := by
-        simp only [Array.getElem_push_lt hj_old]
+        simp [Array.getElem_push_lt, hj_old]
       rw [h_lbli_old] at h_fi
       rw [h_lblj_old] at h_fj
-      -- Now we need to show l ≠ hyps[i] and l ≠ hyps[j] to use insert_find_preserved
-      -- Key insight: hyps[i] and hyps[j] are from the original hyps array
-      -- If l is new (being added to frame), then l ≠ hyps[i] and l ≠ hyps[j]
-      -- Case split on whether insert succeeded
-      by_cases h_success : (db.insert pos l (.hyp true f)).error? = none
-      · -- Insert succeeded → use insert_find_preserved
-        -- We need l ≠ hyps[i] and l ≠ hyps[j]
-        -- For now, assume these (would need hypothesis that l is fresh)
-        have h_l_ne_i : l ≠ hyps[i] := by
-          -- This requires knowing l is a fresh label not in hyps
-          -- In practice, insertHyp ensures this, but we don't have that hypothesis here
-          sorry  -- Need: l not in original hyps
-        have h_l_ne_j : l ≠ hyps[j] := by
-          sorry  -- Need: l not in original hyps
-        -- Now use insert_find_preserved to rewrite lookups back to db
-        have h_fi_db : db.find? hyps[i] = some (.hyp false fi lbli) := by
-          have h_preserved_i := insert_find_preserved db pos l hyps[i] (.hyp true f) h_l_ne_i h_success
-          rw [← h_preserved_i]
-          exact h_fi
-        have h_fj_db : db.find? hyps[j] = some (.hyp false fj lblj) := by
-          have h_preserved_j := insert_find_preserved db pos l hyps[j] (.hyp true f) h_l_ne_j h_success
-          rw [← h_preserved_j]
-          exact h_fj
-        -- Now apply h_unique with the original db
-        exact h_unique i j hi_old hj_old h_ne fi fj lbli lblj h_fi_db h_fj_db h_szi h_szj
-      · -- Error case
-        exfalso
-        sorry  -- Error case needs additional hypothesis
+      -- Show l is distinct from any existing hypothesis label
+      have h_l_ne_i : l ≠ hyps[i] := by
+        intro h_eq
+        -- If hyps[i] = l, then find? l would be the newly inserted essential hyp,
+        -- contradicting h_fi which says it's a float hyp.
+        have h_fi_l : (db.insert pos l (.hyp true f)).find? l = some (.hyp false fi lbli) := by
+          simpa [h_eq] using h_fi
+        have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
+        have h_obj : Object.hyp true f l = Object.hyp false fi lbli := by
+          rw [h_inserted] at h_fi_l
+          exact Option.some.inj h_fi_l
+        have h_bool : true = false := by
+          have h_flag := congrArg (fun o => match o with | Object.hyp b _ _ => b | _ => false) h_obj
+          simpa using h_flag
+        cases h_bool
+      have h_l_ne_j : l ≠ hyps[j] := by
+        intro h_eq
+        have h_fj_l : (db.insert pos l (.hyp true f)).find? l = some (.hyp false fj lblj) := by
+          simpa [h_eq] using h_fj
+        have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
+        have h_obj : Object.hyp true f l = Object.hyp false fj lblj := by
+          rw [h_inserted] at h_fj_l
+          exact Option.some.inj h_fj_l
+        have h_bool : true = false := by
+          have h_flag := congrArg (fun o => match o with | Object.hyp b _ _ => b | _ => false) h_obj
+          simpa using h_flag
+        cases h_bool
+      -- Use insert_find_preserved to rewrite lookups back to db
+      have h_pres_i := insert_find_preserved db pos l hyps[i] (.hyp true f) h_l_ne_i h_success
+      have h_pres_j := insert_find_preserved db pos l hyps[j] (.hyp true f) h_l_ne_j h_success
+      have h_fi_db : db.find? hyps[i] = some (.hyp false fi lbli) := by
+        simpa [h_pres_i] using h_fi
+      have h_fj_db : db.find? hyps[j] = some (.hyp false fj lblj) := by
+        simpa [h_pres_j] using h_fj
+      -- Apply the original uniqueness hypothesis
+      exact h_unique i j hi_old hj_old h_ne fi fj lbli lblj h_fi_db h_fj_db h_szi h_szj
 
 /-- Extract variable name from a formula (assuming it's at position 1) -/
 def extract_var (f : Formula) : String :=
@@ -644,10 +740,8 @@ theorem insertHyp_detects_duplicate
       prevF[1]!.value = v) →
   -- Then insertHyp sets error
   (db.insertHyp pos l false f).error? ≠ none := by
+  classical
   intro v h_dup
-  -- insertHyp loops through frame.hyps (line 332)
-  -- When it finds a float with same variable (lines 333-334)
-  -- It sets error (line 335)
   sorry
 
 /-! ## Main Theorem -/
@@ -666,71 +760,24 @@ theorem insertHyp_maintains_db_uniqueness
   let db' := db.insertHyp pos l ess f
   -- Either error is set (duplicate detected) or invariant maintained
   db'.error? ≠ none ∨ db_has_unique_floats db' := by
+  classical
+  dsimp
   -- Case analysis on ess (essential vs float)
   by_cases h_ess : ess = true
   · -- Case 1: Essential hypothesis (not a float)
-    -- insertHyp doesn't check for duplicates in this case
-    -- The invariant is preserved because we're not adding a float
-    right
-    unfold db_has_unique_floats
-    constructor
-    · -- Current frame: use frame_unique_floats_add_essential!
-      -- insertHyp for essential (ess = true):
-      --   db' = (db.insert pos l (.hyp true f)).withHyps (fun hyps => hyps.push l)
-      -- This is exactly the pattern frame_unique_floats_add_essential handles
-      have ⟨h_curr, _⟩ := h_unique
-      -- Key properties:
-      -- 1. db'.frame.hyps = db.frame.hyps.push l (from withHyps)
-      -- 2. db' has db.insert pos l (.hyp true f) as the underlying db
-      -- We need to bridge from the concrete insertHyp to the abstract pattern
-      sorry  -- Needs to show insertHyp result matches frame_unique_floats_add_essential pattern
-    · -- All assertions: their frames unchanged
-      -- insertHyp only modifies db.frame and adds one object (the hypothesis)
-      -- It doesn't modify existing assertion frames
-      intros label_a fmla_a fr_a proof_a h_find_a
-      have ⟨_, h_frames⟩ := h_unique
-      -- The key: insertHyp = insert + withHyps
-      -- db' = (db.insert pos l (.hyp true f)).withHyps (fun hyps => hyps.push l)
-      unfold DB.insertHyp at h_find_a
-      rw [h_ess] at h_find_a
-      simp only [Id.run] at h_find_a
-      -- Now: h_find_a : (db.insert pos l (.hyp true f)).withHyps (...).find? label_a = some (.assert ...)
-      -- Step 1: Use DB.withHyps_find? to eliminate withHyps
-      have h_find_after_insert : (db.insert pos l (.hyp true f)).find? label_a = some (.assert fmla_a fr_a proof_a) := by
-        rw [← DB.withHyps_find?]
-        exact h_find_a
-      -- Step 2: Use insert_find_preserved to show lookup in db
-      --         Since insert adds .hyp at l, and label_a maps to .assert,
-      --         we know label_a ≠ l (a hyp label can't equal an assert label being looked up)
-      -- Case split on whether insert succeeded
-      by_cases h_success : (db.insert pos l (.hyp true f)).error? = none
-      · -- Insert succeeded → can use insert_find_preserved
-        -- Need to show label_a ≠ l
-        by_cases h_label_ne : label_a ≠ l
-        · -- label_a ≠ l → use insert_find_preserved
-          have h_find_db : db.find? label_a = some (.assert fmla_a fr_a proof_a) := by
-            have h_preserved := insert_find_preserved db pos l label_a (.hyp true f) (Ne.symm h_label_ne) h_success
-            rw [← h_preserved]
-            exact h_find_after_insert
-          -- Now apply h_frames, but need to bridge db' to db for fr_a.hyps lookups
-          sorry  -- Need: frame_has_unique_floats db' fr_a.hyps from frame_has_unique_floats db fr_a.hyps
-        · -- label_a = l → impossible (l is being inserted as .hyp, not .assert)
-          have h_eq : label_a = l := by
-            by_contra h_ne_contra
-            exact h_label_ne h_ne_contra
-          rw [h_eq] at h_find_after_insert
-          -- h_find_after_insert : (db.insert ...).find? l = some (.assert ...)
-          -- But DB.find?_insert_self_hyp (if it succeeds) shows it should be .hyp
-          have h_inserted := DB.find?_insert_self_hyp db pos l true f h_success
-          rw [h_inserted] at h_find_after_insert
-          -- h_find_after_insert : some (.hyp true f l) = some (.assert fmla_a fr_a proof_a)
-          injection h_find_after_insert with h_contra
-          -- This contradicts: .hyp ≠ .assert
-          cases h_contra
-      · -- Insert failed → error set, so left disjunct holds
-        -- But we're in the "right" branch trying to prove db_has_unique_floats
-        -- This is a contradiction - we can't be in both error and no-error case
-        sorry  -- Need to restructure: if error, return left; else continue
+    subst h_ess
+    -- Unfold insertHyp for essential case
+    have h_db' :
+        db.insertHyp pos l true f =
+          (db.insert pos l (.hyp true f)).withHyps (fun hyps => hyps.push l) := by
+      simp [DB.insertHyp, Id.run]
+      -- Prove the goal for the expanded form and rewrite back
+    have goal_expr :
+        ¬((db.insert pos l (.hyp true f)).withHyps (fun hyps => hyps.push l)).error? = none ∨
+          db_has_unique_floats ((db.insert pos l (.hyp true f)).withHyps (fun hyps => hyps.push l)) := by
+      sorry
+    -- Rewrite back to original db.insertHyp form
+    simpa [h_db'] using goal_expr
   · -- Case 2: Float hypothesis (ess = false)
     -- From h_ess, we have ¬(ess = true), which for Bool means ess = false
     have h_ess_false : ess = false := by
@@ -758,24 +805,7 @@ theorem insertHyp_maintains_db_uniqueness
         -- Need to show db' has unique floats
         -- Key insight: ¬h_dup means the new float's variable v is different
         -- from all existing float variables
-        unfold db_has_unique_floats
-        constructor
-        · -- Current frame: db' = (db.insert pos l (.hyp false f)).withHyps (push l)
-          -- Need to show frame_unique_floats db' db'.frame.hyps
-          unfold frame_has_unique_floats
-          intros i j hi hj h_ne_ij fi_new fj_new lbli_new lblj_new
-          intros h_fi_new h_fj_new h_szi_new h_szj_new
-          -- The new frame has hyps = db.frame.hyps.push l
-          -- So we need to consider:
-          --   1. Both i, j in original hyps
-          --   2. One in original, one is new (index = size)
-          --   3. Can't both be new (only added 1)
-          -- The key is that the new float has variable v ≠ all existing
-          sorry
-        · -- Assertions unchanged
-          intros label fmla fr proof h_find
-          -- Same reasoning as essential case
-          sorry
+        sorry
     · -- Float with invalid size (shouldn't happen in practice)
       -- insertHyp doesn't check for duplicates if size < 2
       -- This case shouldn't occur with parser_validates_all_float_structures
