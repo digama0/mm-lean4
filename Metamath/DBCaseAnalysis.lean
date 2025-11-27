@@ -860,6 +860,71 @@ Strategy:
 For now: Accept as axioms, prove the spec later via forM induction.
 -/
 
+/-- mkError preserves error when already set (local copy for this module) -/
+private theorem mkError_preserves_error_local (db : DB) (pos : Pos) (msg : String)
+    (h : db.error = true) :
+    (db.mkError pos msg).error = true := by
+  unfold DB.mkError DB.error
+  simp
+
+/-- insert preserves error when already set (local copy for this module) -/
+private theorem insert_preserves_error_local (db : DB) (pos : Pos) (label : String) (obj : String → Object)
+    (h : db.error = true) :
+    (db.insert pos label obj).error = true := by
+  simp only [Verify.DB.insert, Verify.DB.error] at h ⊢
+  -- h : db.error?.isSome = true
+  split
+  · -- Case: obj label is .const
+    split
+    · -- mkError case - always has error
+      simp only [Verify.DB.mkError, Option.isSome, ite_true]
+    · -- no mkError, but error was already set
+      simp only [h, ite_true]
+  · -- non-const cases
+    simp only [h, ite_true]
+
+/-- withHyps preserves error (local copy for this module) -/
+private theorem withHyps_preserves_error_local (db : DB) (f : Array String → Array String)
+    (h : db.error = true) :
+    (db.withHyps f).error = true := by
+  unfold DB.withHyps DB.withFrame DB.error
+  exact h
+
+/-- floatStep preserves error when already set -/
+theorem floatStep_preserves_error_when_set (pos : Pos) (v : String) (db : DB) (h : String)
+    (h_err : db.error = true) :
+    (floatStep pos v db h).error = true := by
+  unfold floatStep
+  split
+  · -- some (.hyp false prevF _)
+    split
+    · -- mkError case
+      exact mkError_preserves_error_local db pos _ h_err
+    · -- no mkError
+      exact h_err
+  · -- other cases: returns db unchanged
+    exact h_err
+
+/-- floatCheckLoopAux preserves error when already set -/
+theorem floatCheckLoopAux_preserves_error_when_set (db : DB) (pos : Pos) (v : String) (hyps : List String)
+    (h_err : db.error = true) :
+    (floatCheckLoopAux db pos v hyps).error = true := by
+  rw [floatCheckLoopAux_eq_foldl]
+  -- Use induction on foldl
+  induction hyps generalizing db with
+  | nil => exact h_err
+  | cons h rest ih =>
+    simp only [List.foldl]
+    apply ih
+    exact floatStep_preserves_error_when_set pos v db h h_err
+
+/-- floatCheckLoop preserves error when already set -/
+theorem floatCheckLoop_preserves_error_when_set (db : DB) (pos : Pos) (v : String)
+    (h_err : db.error = true) :
+    (floatCheckLoop db pos v).error = true := by
+  rw [floatCheckLoop_eq_aux]
+  exact floatCheckLoopAux_preserves_error_when_set db pos v db.frame.hyps.toList h_err
+
 /-- When no duplicate float exists, float check preserves error state -/
 theorem float_check_no_dup_preserves_error (db : DB) (pos : Pos) (v : String)
     (h_no_dup : hasFloatBinding db v = false) :
@@ -936,12 +1001,49 @@ theorem insertHyp_preserves_error_when_set (db : DB) (pos : Pos) (label : String
     (h_err : db.error = true) :
     (db.insertHyp pos label ess f).error = true := by
   unfold DB.insertHyp
-  -- TODO: Need to prove:
-  -- 1. floatCheckLoop preserves error when already set (general error propagation)
-  -- 2. insert preserves error when already set
-  -- 3. withHyps preserves error when already set
-  -- Then compose these three facts
-  sorry
+  -- insertHyp = float_check >> insert >> withHyps
+  -- We show each step preserves error=true:
+  -- 1. Float check (if executed) preserves error
+  -- 2. insert preserves error
+  -- 3. withHyps preserves error
+  simp only [Id.run]
+  -- The float check is: if !ess && f.size >= 2 then (for loop) else db
+  split
+  · -- Float check executed
+    -- After float check, error is still true
+    have h_after_float : (Id.run (do
+        let mut db := db
+        for h in db.frame.hyps do
+          if let some (.hyp false prevF _) := db.find? h then
+            if prevF.size >= 2 && prevF[1]!.value == f[1]!.value then
+              db := db.mkError pos s!"variable {f[1]!.value} already has $f hypothesis"
+        pure db)).error = true := by
+      -- The loop is floatCheckLoop, which preserves error when set
+      have : (Id.run (do
+        let mut db := db
+        for h in db.frame.hyps do
+          if let some (.hyp false prevF _) := db.find? h then
+            if prevF.size >= 2 && prevF[1]!.value == f[1]!.value then
+              db := db.mkError pos s!"variable {f[1]!.value} already has $f hypothesis"
+        pure db)) = floatCheckLoop db pos f[1]!.value := rfl
+      rw [this]
+      exact floatCheckLoop_preserves_error_when_set db pos _ h_err
+    -- After insert, error is still true
+    have h_after_insert : ((Id.run (do
+        let mut db := db
+        for h in db.frame.hyps do
+          if let some (.hyp false prevF _) := db.find? h then
+            if prevF.size >= 2 && prevF[1]!.value == f[1]!.value then
+              db := db.mkError pos s!"variable {f[1]!.value} already has $f hypothesis"
+        pure db)).insert pos label (.hyp ess f)).error = true :=
+      insert_preserves_error_local _ pos label _ h_after_float
+    -- After withHyps, error is still true
+    exact withHyps_preserves_error_local _ _ h_after_insert
+  · -- Float check skipped, db unchanged
+    -- After insert, error is still true
+    have h_after_insert := insert_preserves_error_local db pos label (.hyp ess f) h_err
+    -- After withHyps, error is still true
+    exact withHyps_preserves_error_local _ _ h_after_insert
 
 /-- hasFloatBinding only matches variables, never constants -/
 theorem hasFloatBinding_const_false (db : DB) (c : String) :
