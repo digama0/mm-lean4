@@ -1,5 +1,6 @@
 import Std.Data.HashMap
 import Std.Data.HashSet
+import Metamath.ByteSliceCompat
 
 /-! ## Array Bridging Lemmas
 
@@ -33,7 +34,7 @@ namespace Array
 @[simp] theorem get!_toList' {α} [Inhabited α]
     (a : Array α) (i : Nat) (h : i < a.size) :
     a[i]! = a.toList[i]! := by
-  simp [getElem!_def, getElem_toList, h]
+  simp [getElem_toList, h]
 
 end Array
 
@@ -60,78 +61,9 @@ def isAlphanum (c : UInt8) : Bool :=
 
 end UInt8
 
-structure ByteSliceT where
-  arr : ByteArray
-  off : Nat
-
-namespace ByteSliceT
-
-@[inline] def size (self : ByteSliceT) : Nat := self.arr.size - self.off
-
-instance : GetElem ByteSliceT Nat UInt8 fun _ _ => True where
-  getElem self idx _ := self.arr[self.off + idx]!
-
-end ByteSliceT
-
-def ByteArray.toSliceT (arr : ByteArray) : ByteSliceT := ⟨arr, 0⟩
-
-structure ByteSlice where
-  arr : ByteArray
-  off : Nat
-  len : Nat
-
-namespace ByteSlice
-
-def toArray : ByteSlice → ByteArray
-  | ⟨arr, off, len⟩ => arr.extract off len
-
-instance : GetElem ByteSlice Nat UInt8 fun _ _ => True where
-  getElem self idx _ := self.arr[self.off + idx]!
-
-def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
-    (arr : ByteArray) (off stop : Nat) (i : Nat) (b : β) : m β := do
-  if i < stop then
-    match ← f arr[i]! b with
-    | ForInStep.done b => pure b
-    | ForInStep.yield b => loop f arr off stop (i+1) b
-  else pure b
-
-instance : ForIn m ByteSlice UInt8 :=
-  ⟨fun ⟨arr, off, len⟩ b f => forIn.loop f arr off (off + len) off b⟩
-
-end ByteSlice
-
-def ByteSliceT.toSlice : ByteSliceT → ByteSlice
-  | ⟨arr, off⟩ => ⟨arr, off, arr.size - off⟩
-
-def ByteArray.toSlice (arr : ByteArray) : ByteSlice := ⟨arr, 0, arr.size⟩
-
-def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
-  let rec loop (arr₁ : ByteArray) (i j : Nat) : Bool :=
-    if j < arr.size then
-      arr₁[i]! == arr[j]! && loop arr₁ (i+1) (j+1)
-    else true
-  bs.len == arr.size && loop bs.arr bs.off 0
-
-def String.toAscii (s : String) : ByteArray :=
-  let rec loop (out : ByteArray) (p : Pos) : ByteArray :=
-    if h : s.atEnd p then out else
-      let c := s.get p
-      have := Nat.sub_lt_sub_left (Nat.gt_of_not_le (mt decide_eq_true h)) (lt_next s _)
-      loop (out.push c.toUInt8) (s.next p)
-  termination_by s.endPos.1 - p.1
-  loop ByteArray.empty 0
-
-def ByteSlice.toString (bs : ByteSlice) : String := Id.run do
-  let mut s := ""
-  for c in bs do s := s.push c.toChar
-  s
-
-instance : ToString ByteSlice where
-  toString bs := Id.run do
-    let mut s := ""
-    for c in bs do s := s.push c.toChar
-    s
+-- ByteSlice and ByteSliceT now use Std.ByteSlice (Batteries 4.24.0+)
+-- Import the compatibility layer that provides the old API
+-- (Custom definitions removed; now using library types)
 
 namespace Metamath
 namespace Verify
@@ -208,16 +140,20 @@ instance : ToString Formula where
     f.foldl (init := s) (start := 1) fun (s:String) v =>
       s ++ " " ++ v.value
 
-def Formula.subst (σ : HashMap String Formula) (f : Formula) : Except String Formula := do
-  let mut f' := #[]
-  for c in f do
-    match c with
-    | .const _ => f' := f'.push c
-    | .var v =>
-      match σ[v]? with
-      | none => throw s!"variable {v} not found"
-      | some e => f' := e.foldl Array.push f' 1
-  pure f'
+/-- One-step substitution action. -/
+def Formula.substStep (σ : HashMap String Formula)
+    (acc : Formula) (s : Sym) : Except String Formula :=
+  match s with
+  | .const _ => .ok (acc.push s)
+  | .var v   =>
+    match σ[v]? with
+    | none   => .error s!"variable {v} not found"
+    | some e => .ok (e.foldl Array.push acc 1)
+
+/-- Substitution is foldlM of substStep over the array.
+    This definition makes substitution reasoning straightforward. -/
+def Formula.subst (σ : HashMap String Formula) (f : Formula) : Except String Formula :=
+  f.foldlM (Formula.substStep σ) #[]
 
 def Formula.foldlVars (self : Formula) (init : α) (f : α → String → α) : α :=
   self.foldl (init := init) (start := 1) fun a v =>
@@ -489,7 +425,7 @@ def checkHyp (i : Nat) (subst : HashMap String Formula) :
   have h_idx : off.1 + i < stack.size := by
     have : off.1 + i < off.1 + hyps.size := Nat.add_lt_add_left h_i _
     simpa [off.2] using this
-  simp [Array.getBang_eq_get_nat, h_idx, bind, Except.bind]
+  simp [h_idx, bind, Except.bind]
   -- After all simplifications, LHS and RHS are structurally identical
   -- Just need to handle the nested if-then-else and match cases
   split
@@ -523,7 +459,7 @@ def checkHyp (i : Nat) (subst : HashMap String Formula) :
   have h_idx : off.1 + i < stack.size := by
     have : off.1 + i < off.1 + hyps.size := Nat.add_lt_add_left h_i _
     simpa [off.2] using this
-  simp [Array.getBang_eq_get_nat, h_idx]
+  simp [h_idx]
   -- Float case: simpler than essential case, no do-notation to reduce
   split <;> rfl
 
@@ -764,8 +700,8 @@ def feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) : ParserState :=
     match p with
     | .comment _ => unreachable!
     | .start =>
-      if tk.len == 2 && tk[0] == '$'.toUInt8 then
-        match tk[1].toChar with
+      if tk.len == 2 && tk[0]! == '$'.toUInt8 then
+        match tk[1]!.toChar with
         | '{' => s.withDB .pushScope
         | '}' => s.withDB (.popScope pos)
         | 'c' => { s with tokp := .const }
@@ -797,10 +733,10 @@ def feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) : ParserState :=
           | _ => return s.mkError pos s!"{tk} is not a constant or variable"
           { s with tokp := .math (arr.push tk) p }
     | .label pos lab =>
-      if tk.len == 2 && tk[0] == '$'.toUInt8 then
+      if tk.len == 2 && tk[0]! == '$'.toUInt8 then
         let go (s : ParserState) (k : TokensKind) :=
           { s with tokp := .math #[] ⟨k, pos, lab⟩ }
-        match tk[1].toChar with
+        match tk[1]!.toChar with
         | 'f' => go s .float
         | 'e' => go s .ess
         | 'a' => go s .ax
@@ -834,9 +770,9 @@ def feed (base : Nat) (arr : ByteArray)
         feed base arr (i+1) .ws s
       | .token ot =>
         let s := match ot with
-        | .this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
+        | .this off => s.feedToken (base + off) (ByteSlice.mk arr off (i - off))
         | .old base off arr' => s.feedToken (base + off)
-          ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
+          (ByteSlice.mk (arr.copySlice 0 arr' arr'.size i false) off (arr'.size - off + i))
         let s : ParserState := s.updateLine (base + i) c
         if let some ⟨e, _⟩ := s.db.error? then
           { s with db := { s.db with error? := some ⟨e, i+1⟩ } }
@@ -850,13 +786,15 @@ def feed (base : Nat) (arr : ByteArray)
       | .ws => .ws
       | .token ot =>
         match ot with
-        | .this off => .token base ⟨arr, off⟩
-        | .old base off arr' => .token base ⟨arr' ++ arr, off⟩ }
+        | .this off => .token base (ByteSliceT.mk arr off)
+        | .old base off arr' => .token base (ByteSliceT.mk (arr' ++ arr) off) }
 
 def feedAll (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
   match s.charp with
   | .ws => s.feed base arr 0 .ws
-  | .token base' ⟨arr', off⟩ =>
+  | .token base' tk =>
+    let arr' := tk.byteArray
+    let off := tk.start
     let s := { s with charp := default }
     s.feed base arr 0 (.token (.old base' off arr'))
 

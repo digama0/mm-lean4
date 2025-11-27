@@ -1,16 +1,27 @@
 /-
 Helper lemmas for Metamath kernel verification.
 
-These are standard library properties. Oruží (GPT-5 Pro) provided proofs,
-but they encounter mapM.loop expansion issues in Lean 4.20.0-rc2.
-Marked as axioms with clear justifications until adapted proofs are available.
+This module contains kernel-specific helpers and re-exports array/list
+infrastructure from Metamath.ArrayListExt.
 
-See ORUZI_SECOND_ATTEMPT.md for details on the compilation issues.
+After Batteries 4.24.0 upgrade (November 2025):
+- Array/List infrastructure centralized in ArrayListExt.lean
+- KernelExtras focuses on kernel-specific helpers
 -/
 
 import Metamath.Spec
+import Metamath.Verify
+import Metamath.ArrayListExt
+import Std.Data.HashMap.Lemmas
 import Batteries.Data.List.Lemmas
 import Batteries.Data.Array.Lemmas
+
+-- Re-export array/list infrastructure for backward compatibility
+export List (dropLastN dropLastN_eq_take take_eq_dropLastN)
+export List (mapM_length_option foldl_and_eq_true foldl_all₂ mapM_some_of_mem getElem!_idxOf)
+export KernelExtras.List (mapM_get_some list_mapM_append list_mapM_dropLastN_of_mapM_some filterMap_after_mapM_eq)
+export Array (getElem!_toList toList_get getElem!_mem_toList getElem!_of_getElem?_eq_some)
+export Array (toList_extract_take toList_extract_dropLastN shrink_toList window_toList_map)
 
 /-! ## Except monad peeling helpers (for stepAssert bind chain navigation) -/
 
@@ -28,341 +39,6 @@ theorem ok_of_chain {ε α} :
   intro β x f y h; exact (Except.bind_ok_iff).1 h
 
 end Except
-
-/-! ## Array/List helper lemmas -/
-
-namespace List
-
-/-- Drop the last n elements from a list.
-    Equivalent to taking the first (length - n) elements.
-    Note: The builtin List.dropLast (no argument) drops exactly 1 element.
-    This version `dropLastN` takes n : Nat and drops the last n elements.
--/
-def dropLastN (xs : List α) (n : Nat) : List α :=
-  xs.take (xs.length - n)
-
-/-- dropLastN n is equivalent to take (length - n). -/
-theorem dropLastN_eq_take (xs : List α) (n : Nat) :
-  xs.dropLastN n = xs.take (xs.length - n) := rfl
-
-/-- take n is equivalent to dropLastN (length - n). -/
-theorem take_eq_dropLastN (xs : List α) (n : Nat) (h : n ≤ xs.length) :
-  xs.take n = xs.dropLastN (xs.length - n) := by
-  rw [dropLastN_eq_take]
-  congr 1
-  omega
-
-/-- If mapM succeeds, the result has the same length as the input.
-
-This is a fundamental property of Option.mapM: it either fails (returns none)
-or produces exactly one output element for each input element.
-
-Oruži provided a proof using case-splitting on f x and xs.mapM f, but
-simp [List.mapM] doesn't expand past mapM.loop in Lean 4.20.0-rc2.
--/
-axiom mapM_length_option {α β : Type} (f : α → Option β) :
-  ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ys.length = xs.length
-
-/-- Folding && over a list returns true iff all elements satisfy the predicate.
-
-Standard fold property: folding && starting from true returns true iff every
-element contributes true (since true && true = true, true && false = false).
-
-Oruži provided a proof via xs.all, but the .all method has different
-availability in Lean 4.20.0-rc2.
--/
-axiom foldl_and_eq_true {α} {p : α → Bool} (xs : List α) :
-    xs.foldl (fun b x => b && p x) true = true ↔
-    ∀ x ∈ xs, p x = true
-
-/-- Nested fold with && returns true iff predicate holds for all pairs.
-
-Extension of foldl_and_eq_true to two lists. The nested fold checks p x y
-for every pair (x,y) where x ∈ xs and y ∈ ys, returning true iff all checks pass.
-
-Oruži provided a proof building on foldl_and_eq_true, but encounters
-type mismatches in the fold equivalence rewriting.
--/
-axiom foldl_all₂ {α β} (xs : List α) (ys : List β) (p : α → β → Bool) :
-  (xs.foldl (fun b x => ys.foldl (fun b' y => b' && p x y) b) true = true)
-  ↔ (∀ x ∈ xs, ∀ y ∈ ys, p x y = true)
-
-/-- If mapM succeeds on a list, then f succeeds on each element.
-
-Fundamental Option.mapM property: the monadic bind only succeeds if f succeeds
-on every element. If mapM returns some ys, then every input element must have
-successfully converted.
-
-Oruži provided a proof with direct induction, but again hits mapM.loop
-expansion issues when trying to extract the success proof.
--/
-axiom mapM_some_of_mem {α β} (f : α → Option β) {xs : List α} {ys : List β} {x : α}
-    (h : xs.mapM f = some ys) (hx : x ∈ xs) : ∃ b, f x = some b
-
-/-- If `xs.allM p = some true` in the Option monad, then every element satisfies `p x = some true`.
-
-This is the key extraction lemma for witness-based verification.
-When allM succeeds, we can extract pointwise success facts.
-
-**PROVEN (Option B from Oruží):** Structural induction on xs with case splits on p x.
-Uses standard Option.bind reasoning and Bool.and_eq_true.
-
-**Usage:** Unblocks TypedSubst witness construction from checkFloat validation.
-This is the reusable pattern for every witness in checkHyp/toSubstTyped.
--/
-theorem allM_true_iff_forall {α : Type _} (p : α → Option Bool) (xs : List α) :
-  xs.allM p = some true ↔ (∀ x ∈ xs, p x = some true) := by
-  induction xs with
-  | nil =>
-    simp [allM]
-  | cons x xs ih =>
-    unfold allM
-    constructor
-    · intro h
-      -- Forward: from bind structure to pointwise property
-      cases hp : p x with
-      | none => simp [hp] at h
-      | some b =>
-        simp [hp] at h
-        cases b
-        · simp at h  -- false case contradicts h
-        · -- true case: extract head and tail properties
-          simp at h
-          intro y hy
-          cases hy with
-          | head => exact hp
-          | tail _ hy' => exact (ih.mp h) y hy'
-    · intro hall
-      -- Backward: from pointwise to bind structure
-      have hx : p x = some true := hall x (by simp)
-      have hxs : ∀ y ∈ xs, p y = some true := fun y hy => hall y (by simp [hy])
-      rw [hx]
-      simp [ih.mpr hxs]
-
-/-- Membership in flatMap: `b ∈ xs.flatMap f` iff some element `a ∈ xs` produces `b` via `f`.
-
-This is standard List.mem_bind repackaged for flatMap notation.
-Makes proof intent explicit when extracting witnesses from flatMap operations.
-
-Axiomatized for simplicity - this is just definitional equality with List.mem_bind.
--/
-@[simp] axiom mem_flatMap_iff {α β : Type _} (xs : List α) (f : α → List β) (b : β) :
-  b ∈ xs.flatMap f ↔ ∃ a ∈ xs, b ∈ f a
-
-/-- Getting element at index from idxOf returns the original element.
-
-This is the key property of idxOf: if x is in the list, then xs[idxOf x] = x.
-Axiomatized for simplicity - this is a standard List property.
--/
-axiom getElem!_idxOf {α : Type _} [BEq α] [Inhabited α] {xs : List α} {x : α} (h : x ∈ xs) :
-  xs[xs.idxOf x]! = x
-
-end List
-
-namespace KernelExtras.List
-
-/-- MapM preserves indexing: if mapM succeeds, f succeeds on each element
-    and the results correspond by index.
-
-This connects input indices to output indices in mapM. If xs.mapM f = some ys,
-then for each valid index i, f succeeds on xs[i] and the result is at ys[i].
-
-This is needed for Task 3.2 Property 1 (frame_conversion_correct).
--/
-axiom mapM_get_some {α β} (f : α → Option β) (xs : List α) (ys : List β)
-    (h : xs.mapM f = some ys) (i : Fin xs.length) (h_len : i.val < ys.length) :
-    ∃ b, f xs[i] = some b ∧ ys[i.val]'h_len = b
-
-/-- MapM preserves append structure.
-
-If mapM succeeds on xs ++ ys, it's equivalent to mapping xs and ys separately
-and concatenating the results.
-
-Needed for Task 3.1 viewStack_push proof.
--/
-axiom list_mapM_append {α β} (f : α → Option β) (xs ys : List α) :
-    (xs ++ ys).mapM f = do
-      let xs' ← xs.mapM f
-      let ys' ← ys.mapM f
-      pure (xs' ++ ys')
-
-/-- MapM preserves dropLastN operation.
-
-If mapM succeeds on xs, then mapM on xs.dropLastN n also succeeds and produces
-ys.dropLastN n.
-
-Needed for Task 3.1 viewStack_popK proof.
--/
-axiom list_mapM_dropLastN_of_mapM_some {α β} (f : α → Option β)
-    (xs : List α) (ys : List β) (n : Nat)
-    (h : xs.mapM f = some ys) :
-    (xs.dropLastN n).mapM f = some (ys.dropLastN n)
-
-/-- Fuse `filterMap` through a successful `mapM` (into `Option`).
-
-When `xs.mapM f = some ys`, filtering and mapping through `p` on the input side
-is equivalent to just filtering and mapping through `p` on the output side.
-
-**Mathematical insight:**
-If f : α → Option β and p : β → Option γ, then:
-  xs.filterMap (λ a => f a >>= p) = ys.filterMap p
-when xs.mapM f = some ys.
-
-This is the key lemma for proving `toFrame_floats_eq`: it shows that extracting
-floats from the spec frame (ys.filterMap p) equals extracting floats from the
-impl labels (xs.filterMap (f >=> p)).
-
-**Proof strategy:** Induction on xs with case-splitting on f x and mapM xs.
-- nil case: both sides are nil
-- cons case: destruct f x; if none, mapM fails; if some y, recurse on tail
-
-**Status:** Axiomatized due to Lean 4.20.0-rc2 mapM.loop expansion issues.
-The property is sound and matches the standard filtermapM fusion from category theory.
--/
-axiom filterMap_after_mapM_eq {α β γ}
-    (f : α → Option β) (p : β → Option γ)
-    {xs : List α} {ys : List β}
-    (h : xs.mapM f = some ys) :
-  xs.filterMap (fun a => Option.bind (f a) p) = ys.filterMap p
-
-end KernelExtras.List
-
-namespace Array
-
-/-- Any element fetched by `get` with a valid Fin index sits in `toList`.
-
-This is a fundamental Array property: a[k] accesses element at index k.val
-in a.data, and a.toList = a.data, so a[k] ∈ a.toList.
-
-Oruži's proof using List.get_mem should work but may need minor adjustments
-for the exact getElem notation in this Lean version.
--/
-@[simp] axiom mem_toList_get {α} (a : Array α) (k : Fin a.size) : a[k] ∈ a.toList
-
-/-- For a valid Fin index, getElem! equals getElem.
-
-Both notations access element at index k.val. Since k : Fin a.size,
-we have k.val < a.size, so the bounds check in getElem! succeeds and
-both reduce to the same element a.data[k.val].
-
-Oruži's proof using simp [getElem!, k.isLt] causes recursion depth issues
-in this Lean version.
--/
-@[simp] axiom getBang_eq_get {α} [Inhabited α] (a : Array α) (k : Fin a.size) : a[k]! = a[k]
-
-/-- Pushing an element appends it to the toList representation.
-
-Array.push adds an element to the end, so (a.push x).toList = a.toList ++ [x].
-This is fundamental for stack operations where push appends.
-
-Needed for Task 3.1 viewStack_push proof.
--/
-@[simp] axiom toList_push {α} (a : Array α) (x : α) : (a.push x).toList = a.toList ++ [x]
-
-/-- Extracting a prefix corresponds to dropLast on the list representation.
-
-Array.extract 0 (a.size - k) takes the first (size-k) elements, which is
-equivalent to dropping the last k elements from a.toList.
-
-Needed for Task 3.1 viewStack_popK proof.
--/
-@[simp] axiom toList_extract_dropLastN {α} (a : Array α) (k : Nat) (h : k ≤ a.size) :
-  (a.extract 0 (a.size - k)).toList = a.toList.dropLastN k
-
-/-- Array.extract starting at 0 corresponds to List.take.
-
-Array.extract 0 n takes the first n elements, which is equivalent to List.take n.
-This is a fundamental Array/List correspondence lemma.
-
-Axiomatized for simplicity - Array is just a wrapper around List, so this is
-definitional or near-definitional.
--/
-@[simp] axiom toList_extract_take {α} (a : Array α) (n : Nat) :
-  (a.extract 0 n).toList = a.toList.take n
-
-/-- Array.shrink n keeps first n elements, converting to take on lists. -/
-@[simp] axiom shrink_toList {α} (a : Array α) (n : Nat) :
-  (a.shrink n).toList = a.toList.take n
-
-/-- Convert a window [off, off+len) of an array to a list slice, preserving map.
-
-Array.extract creates a subarray from indices [off, off+len). Converting to list
-and mapping f is equivalent to dropping off elements from a.toList, taking len,
-and then mapping.
-
-**Usage:** Connects impl stack windows (Array.extract) to spec stack slices (List operations)
-in checkHyp_floats_sound and checkHyp_essentials_sound.
-
-**Proof sketch:** Array.extract off (off+len) produces elements a[off]..a[off+len-1],
-which correspond to (a.toList.drop off).take len. The map f commutes with both.
-
-Axiomatized for simplicity - can be proven using Array.toList_extract and List.map properties.
--/
-@[simp] axiom window_toList_map {α β}
-  (a : Array α) (off len : Nat) (f : α → β) (h : off + len ≤ a.size) :
-  (a.extract off (off + len)).toList.map f
-  = (a.toList.drop off |>.take len).map f
-
-/-- Get element! from array equals get element! from toList.
-
-Standard correspondence between array and list indexing.
-Axiomatized for simplicity - this is a fundamental Array property.
--/
-axiom getElem!_toList {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.size) :
-  a[i]! = a.toList[i]!
-
-/-- Array.toList.get equals Array.get  for valid indices.
-
-Standard correspondence between array and list get operations.
-Axiomatized for simplicity - this is a fundamental Array property.
--/
-axiom toList_get {α} (a : Array α) (i : Nat) (h : i < a.size) :
-  ∀ (h_len : i < a.toList.length), a.toList.get ⟨i, h_len⟩ = a[i]
-
-/-- Array element at valid index (with ! notation) is in toList.
-
-Derived from getBang_eq_get and mem_toList_get: if i < a.size, then a[i]! = a[⟨i, h⟩]
-which is in a.toList by mem_toList_get.
--/
-theorem getElem!_mem_toList {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.size) :
-  a[i]! ∈ a.toList := by
-  let k : Fin a.size := ⟨i, h⟩
-  have : a[i]! = a[k] := getBang_eq_get a k
-  rw [this]
-  exact mem_toList_get a k
-
-/-- Array element at valid index is a member of toList (convenient alias).
-
-This is the key lemma for the label-free backward direction of float correspondence.
-Given an index i < hyps.size, we know hyps[i]! belongs to hyps.toList.
--/
-@[simp] theorem get!_mem_of_lt {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.size) :
-  a[i]! ∈ a.toList :=
-  getElem!_mem_toList a i h
-
-/-- When get? succeeds with some value, get! returns that value.
-
-This is axiomatized because the notation a[i]! doesn't unfold nicely to rfl,
-but it's definitionally true: a[i]! is (a[i]?).getD default by definition.
--/
-axiom getElem!_of_getElem?_eq_some {α} [Inhabited α] (a : Array α) (i : Nat) (x : α)
-    (h : a[i]? = some x) : a[i]! = x
-
-/-- Array.toList.length equals Array.size.
-Standard correspondence between array and list length.
-This is definitional or near-definitional in Lean 4 core.
--/
-@[simp] theorem toList_length {α} (a : Array α) : a.toList.length = a.size := by
-  rfl
-
-/-- Bridge array get! and list get! under bounds.
-Standard correspondence between array and list indexing with ! notation.
--/
-@[simp] theorem get!_toList' {α} [Inhabited α] (a : Array α) (i : Nat) (h : i < a.size) :
-  a[i]! = a.toList[i]! :=
-  getElem!_toList a i h
-
-end Array
 
 namespace KernelExtras
 
@@ -394,16 +70,13 @@ theorem off_le_size {off k n : Nat} (h : off + k = n) : off ≤ n := by
 This theorem unlocks Phase-7 induction by converting array folds to list folds,
 enabling standard list induction patterns.
 
-**Proof strategy:** Use Array.foldlM definition which already operates on toList.
-This is essentially definitional equality with Array implementation.
-
-**Status:** Axiomatized due to Array.foldlM internal complexity in Lean 4.20.0-rc2.
-The property is sound - Array.foldlM is defined to iterate over the array's list
-representation, so this is a tautology modulo implementation details.
+**Proof strategy:** Array.foldlM is defined in terms of iteration over the
+array's range, which corresponds to folding over the list representation.
 -/
-axiom Array.foldlM_toList_eq
+theorem Array.foldlM_toList_eq
   {α β ε} (f : β → α → Except ε β) (a : Array α) (b : β) :
-  a.foldlM f b = (a.toList.foldlM f b)
+  a.foldlM f b = (a.toList.foldlM f b) := by
+  rw [← Array.foldlM_toList]
 
 /-! ## Fold Induction Lemmas (GPT-5 Pro contribution)
 
@@ -466,6 +139,52 @@ theorem array_foldlM_preserves
     exact hfold
   exact list_foldlM_preserves P f arr.toList init res h0 hstep h_list
 
+/-! ## Array fold head preservation
+
+Micro-lemmas for substitution: Show that folding with Array.push preserves
+the head element at index 0, which is critical for substitution correctness.
+-/
+
+-- Array.getElem!_push_lt is defined in ArrayListExt.lean
+-- It establishes that Array.push preserves access to earlier indices
+
+/-- Foldl with push preserves the head element.
+    Key micro-lemma for substitution: When folding a list using Array.push,
+    the element at index 0 is never modified since we only append to the end.
+
+    **Precondition**: Requires a.size > 0 (array is non-empty).
+    This holds in practice since formulas are well-formed and contain at least
+    one symbol (guaranteed by WellFormedFormula).
+
+    This is used in Formula.substStep to show that when substituting a variable,
+    the constant at position 0 is preserved even after appending expansion symbols. -/
+theorem foldl_from_pos1_preserves_head {a : Metamath.Verify.Formula} (suffix : List Metamath.Verify.Sym)
+    (h_nonempty : 0 < a.size) :
+    (suffix.foldl (fun acc x => acc.push x) a)[0]! = a[0]! := by
+  -- List.foldl with Array.push only appends, so position 0 is never touched
+  induction suffix generalizing a with
+  | nil =>
+    -- No processing: result equals input
+    rfl
+  | cons x xs ih =>
+    -- After one push, head is still at position 0
+    simp only [List.foldl_cons]
+    -- Goal is now: (List.foldl (fun acc y => acc.push y) (a.push x) xs)[0]! = a[0]!
+    -- We need to apply IH with (a.push x) as the new accumulator
+    -- But first show that (a.push x)[0]! = a[0]!
+    have h_head : (a.push x)[0]! = a[0]! := by
+      -- Array.push appends at the end, so index 0 is unchanged
+      apply Array.getElem!_push_lt h_nonempty
+    -- Now show (a.push x) is also non-empty for the inductive hypothesis
+    have h_push_nonempty : 0 < (a.push x).size := by
+      simp [Array.size_push]
+    -- Now the IH gives us:
+    -- (List.foldl (fun acc y => acc.push y) (a.push x) xs)[0]! = (a.push x)[0]!
+    have ih_applied : (List.foldl (fun acc y => acc.push y) (a.push x) xs)[0]! = (a.push x)[0]! :=
+      @ih (a.push x) h_push_nonempty
+    rw [← h_head]
+    exact ih_applied
+
 /-! ## HashMap Lemmas
 
 Standard HashMap insertion and lookup properties.
@@ -481,36 +200,35 @@ variable {α : Type _} [BEq α] [Hashable α]
 Standard HashMap property: insert followed by lookup of the same key
 returns the inserted value.
 
-**Proof strategy**: Use Std.HashMap.find?_insert (if available) or
-prove by cases on bucket structure and BEq equality.
+We rely on `Std.HashMap.getElem?_insert_self`, which is proven for any
+`EquivBEq`/`LawfulHashable` key type.
 -/
-@[simp] theorem find?_insert_self (m : Std.HashMap α β) (k : α) (v : β) :
-  (m.insert k v)[k]? = some v := by
-  -- HashMap insert followed by lookup of same key returns that value
-  -- This is a fundamental HashMap property
-  -- Proof would require Std.HashMap lemmas (not yet available in batteries)
-  -- This is axiom-free - it's a specification of HashMap behavior
-  sorry  -- AXIOM: HashMap insert/lookup same key property
-         -- TODO: Prove when Std.HashMap theorems become available
+@[simp] theorem find?_insert_self (m : Std.HashMap α β) (k : α) (v : β)
+    [EquivBEq α] [LawfulHashable α] [LawfulBEq α] :
+    (m.insert k v)[k]? = some v := by
+  simpa using (Std.HashMap.getElem?_insert_self (m := m) (k := k) (v := v))
 
 /-- Looking up a different key is unchanged by insert.
 
 Standard HashMap property: inserting at key k doesn't affect
 lookups at other keys k'.
 
-**Proof strategy**: Use Std.HashMap.find?_insert (if available) with
-inequality, or prove by cases on bucket structure.
+**Proof strategy**: Use the general `getElem?_insert` lemma and the fact
+that `k == k'` would imply `k = k'` for lawful `BEq`, contradicting `h`.
 -/
 @[simp] theorem find?_insert_ne (m : Std.HashMap α β)
-  {k k' : α} (h : k' ≠ k) (v : β) :
-  (m.insert k v)[k']? = m[k']? := by
-  -- HashMap insert at key k doesn't affect lookups at different key k'
-  -- This is a fundamental HashMap property
-  -- Proof would require Std.HashMap lemmas (not yet available in batteries)
-  sorry  -- AXIOM: HashMap insert/lookup different key property
-         -- TODO: Prove when Std.HashMap theorems become available
+    {k k' : α} (h : k' ≠ k) (v : β)
+    [EquivBEq α] [LawfulHashable α] [LawfulBEq α] :
+    (m.insert k v)[k']? = m[k']? := by
+  classical
+  have hbranch := Std.HashMap.getElem?_insert (m := m) (k := k) (a := k') (v := v)
+  cases hbeq : (k == k') <;> try simp [Std.HashMap.getElem?_insert, hbeq] at hbranch
+  · -- beq returns false, so lookup is unchanged
+    simpa [Std.HashMap.getElem?_insert, hbeq] using hbranch
+  · -- beq returns true, contradicting key inequality
+    have hk' : k = k' := LawfulBEq.eq_of_beq (a := k) (b := k') (by simpa [hbeq])
+    exact (h hk'.symm).elim
 
 end HashMap
 
 end KernelExtras
-

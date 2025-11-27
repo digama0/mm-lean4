@@ -1,1 +1,18 @@
 /.lake
+
+# Archive files (compressed historical snapshots)
+/archive/*.tar.gz
+all_Lean_*.txt
+codex_archive/
+
+# Development artifacts
+*.backup
+*.backup2
+*.session*
+*.snippet*
+*.my_version
+*.with_phase5_changes
+*_FIXED*
+
+# Documentation snapshots
+docs_archive/

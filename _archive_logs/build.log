@@ -1,0 +1,158 @@
+⚠ [2/59] Replayed Metamath.Spec
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Spec.lean:182:23: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Spec.lean:245:8: declaration uses 'sorry'
+⚠ [4/59] Replayed Metamath.Bridge.Basics
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:105:17: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:217:6: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:217:8: unused variable `v`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+✖ [54/59] Building Metamath.KernelClean
+trace: .> LEAN_PATH=/home/zar/claude/hyperon/metamath/mm-lean4/.lake/packages/batteries/.lake/build/lib/lean:/home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean /home/zar/.elan/toolchains/leanprover--lean4---v4.20.0-rc2/bin/lean /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean -R /home/zar/claude/hyperon/metamath/mm-lean4 -o /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/KernelClean.olean -i /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/KernelClean.ilean -c /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/ir/Metamath/KernelClean.c --json
+error: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:394:21: failed to prove index is valid, possible solutions:
+  - Use `have`-expressions to prove the index is valid
+  - Use `a[i]!` notation instead, runtime check is performed, and 'Panic' error message is produced if index is not valid
+  - Use `a[i]?` notation instead, result is an `Option` type
+  - Use `a[i]'h` notation instead, where `h` is a proof that index is valid
+db : DB
+hyps : Array String
+stack : Array Formula
+off : { off // off + hyps.size = stack.size }
+σ_impl : Std.HashMap String Formula
+i : Nat
+⊢ i < hyps.size
+error: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:398:16: failed to prove index is valid, possible solutions:
+  - Use `have`-expressions to prove the index is valid
+  - Use `a[i]!` notation instead, runtime check is performed, and 'Panic' error message is produced if index is not valid
+  - Use `a[i]?` notation instead, result is an `Option` type
+  - Use `a[i]'h` notation instead, where `h` is a proof that index is valid
+db : DB
+hyps : Array String
+stack : Array Formula
+off : { off // off + hyps.size = stack.size }
+σ_impl : Std.HashMap String Formula
+i : Nat
+f : Formula
+a✝ : String
+⊢ 0 < Array.size f
+error: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:398:22: failed to prove index is valid, possible solutions:
+  - Use `have`-expressions to prove the index is valid
+  - Use `a[i]!` notation instead, runtime check is performed, and 'Panic' error message is produced if index is not valid
+  - Use `a[i]?` notation instead, result is an `Option` type
+  - Use `a[i]'h` notation instead, where `h` is a proof that index is valid
+db : DB
+hyps : Array String
+stack : Array Formula
+off : { off // off + hyps.size = stack.size }
+σ_impl : Std.HashMap String Formula
+i : Nat
+f : Formula
+a✝ : String
+⊢ 1 < Array.size f
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:453:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:541:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:558:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:573:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:592:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:615:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:635:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:655:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:688:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:734:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:812:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:878:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:931:8: declaration uses 'sorry'
+error: Lean exited with code 1
+Some required builds logged failures:
+- Metamath.KernelClean
+error: build failed
+⚠ [2/27] Replayed Metamath.Spec
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Spec.lean:182:23: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Spec.lean:245:8: declaration uses 'sorry'
+⚠ [25/27] Replayed Metamath.Bridge.Basics
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:105:17: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:217:6: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:217:8: unused variable `v`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [27/27] Built Metamath.KernelClean
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:453:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:541:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:558:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:573:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:592:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:615:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:635:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:655:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:688:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:734:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:812:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:878:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:931:8: declaration uses 'sorry'
+Build completed successfully.
+⚠ [2/27] Replayed Metamath.Spec
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Spec.lean:182:23: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Spec.lean:245:8: declaration uses 'sorry'
+⚠ [25/27] Replayed Metamath.Bridge.Basics
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:105:17: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:217:6: unused variable `c`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/Bridge/Basics.lean:217:8: unused variable `v`
+note: this linter can be disabled with `set_option linter.unusedVariables false`
+✖ [27/27] Building Metamath.KernelClean
+trace: .> LEAN_PATH=/home/zar/claude/hyperon/metamath/mm-lean4/.lake/packages/batteries/.lake/build/lib/lean:/home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean /home/zar/.elan/toolchains/leanprover--lean4---v4.20.0-rc2/bin/lean /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean -R /home/zar/claude/hyperon/metamath/mm-lean4 -o /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/KernelClean.olean -i /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/KernelClean.ilean -c /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/ir/Metamath/KernelClean.c --json
+error: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:450:58: invalid field 's', the environment does not contain 'Metamath.Spec.Constant.s'
+  c
+has type
+  Constant
+error: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:510:20: unknown identifier 'toFrame_float_correspondence'
+error: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:505:86: unsolved goals
+db : DB
+hyps : Array String
+stack : Array Formula
+off : { off // off + hyps.size = stack.size }
+σ_impl : Std.HashMap String Formula
+fr_spec : Spec.Frame
+h_ok : db.checkHyp hyps stack off 0 ∅ = Except.ok σ_impl
+h_fr : toFrame db { dj := #[], hyps := hyps } = some fr_spec
+h_typed :
+  ∀ (i : Nat),
+    i < hyps.size →
+      match db.find? hyps[i]! with
+      | some (Object.hyp false f a) =>
+        Array.size f = 2 →
+          match f[0]!, f[1]! with
+          | Sym.const c, Sym.var v =>
+            match σ_impl[v]? with
+            | some val => Array.size val > 0 ∧ (toExpr val).typecode = { c := c }
+            | none => False
+          | x, x_1 => True
+      | x => True
+⊢ List.allM
+      (fun x =>
+        match x with
+        | (c, v) => checkFloat σ_impl c v)
+      (floats fr_spec) =
+    some true
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:621:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:638:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:653:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:672:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:695:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:715:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:735:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:768:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:814:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:892:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:958:8: declaration uses 'sorry'
+warning: /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean:1011:8: declaration uses 'sorry'
+error: Lean exited with code 1
+Some required builds logged failures:
+- Metamath.KernelClean
+error: build failed

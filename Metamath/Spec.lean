@@ -186,7 +186,7 @@ inductive ProofValid (Γ : Database) : Frame → List Expr → List ProofStep �
       ∀ needed : List Expr,
       needed = fr'.mand.map (fun h => match h with
         | Hyp.essential e => applySubst fr'.vars σ e
-        | Hyp.floating c v => σ v) →
+        | Hyp.floating _ v => σ v) →
       ∀ remaining : List Expr,
       stack = needed.reverse ++ remaining →
       ProofValid Γ fr (applySubst fr'.vars σ e :: remaining) (ProofStep.useAssertion l σ :: steps)
@@ -233,8 +233,10 @@ inductive ProofValidSeq (Γ : Database) : Frame → List Expr → Frame → List
 
     This is sound because: the only call site (fold_maintains_inv_and_provable)
     starts with empty stack, making the problematic case impossible. -/
-axiom ProofValidSeq.toProvable {Γ : Database} {fr : Frame} {stk : List Expr} {e : Expr} :
-  ProofValidSeq Γ fr stk fr [e] → Provable Γ fr e
+-- TODO: Prove by induction on ProofValidSeq derivation
+theorem ProofValidSeq.toProvable {Γ : Database} {fr : Frame} {stk : List Expr} {e : Expr} :
+  ProofValidSeq Γ fr stk fr [e] → Provable Γ fr e := by
+  sorry
 
 /-- Turn a completed `ProofValid` derivation into a left-to-right `ProofValidSeq`
     starting from the empty stack and same frame.
@@ -246,12 +248,12 @@ axiom ProofValidSeq.toProvable {Γ : Database} {fr : Frame} {stk : List Expr} {e
     We can build a ProofValid inductively by extending with single steps,
     then convert to ProofValidSeq at the end to apply toProvable.
     This avoids threading ProofValidSeq through array folds. -/
--- For now, axiomatize this - the structure is tricky to get right
--- GPT-5 claims it's just structural induction with ProofValidSeq.cons
--- but the exact application needs more thought
-axiom ProofValid.toSeq_from_nil
+-- TODO: Prove by structural induction with ProofValidSeq.cons
+-- Convert each ProofValid step into a ProofValidSeq step
+theorem ProofValid.toSeq_from_nil
   {Γ : Database} {fr : Frame} {stk : List Expr} {steps : List ProofStep} :
-  ProofValid Γ fr stk steps → ProofValidSeq Γ fr [] fr stk
+  ProofValid Γ fr stk steps → ProofValidSeq Γ fr [] fr stk := by
+  sorry
 
 /-! ## Soundness Statement
 

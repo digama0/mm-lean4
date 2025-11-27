@@ -1,0 +1,2185 @@
+6 wph
+$f wff ph
+7 wph
+$f wff ph
+8 6,7 wi
+$a wff ( ph -> ph )
+etc.
+Note that the original 6 steps are now 8 steps. However, the format is
+now the same as that described in Chapter 2.
+
+Chapter 4
+
+The Metamath Language
+Thus mathematics may be defined as the subject in which we
+never know what we are talking about, nor whether what we are
+saying is true.
+Bertrand Russell1
+Probably the most striking feature of the Metamath language is its almost
+complete absence of hard-wired syntax. Metamath does not understand any
+mathematics or logic other than that needed to construct finite sequences of
+symbols according to a small set of simple, built-in rules. The only rule it
+uses in a proof is the substitution of an expression (symbol sequence) for a
+variable, subject to a simple constraint to prevent bound-variable clashes.
+The primitive notions built into Metamath involve the simple manipulation
+of finite objects (symbols) that we as humans can easily visualize and that
+computers can easily deal with. They seem to be just about the simplest
+notions possible that are required to do standard mathematics.
+This chapter serves as a reference manual for the Metamath language.
+It covers the tedious technical details of the language, some of which you
+may wish to skim in a first reading. On the other hand, you should pay close
+attention to the defined terms in boldface; they have precise meanings that
+are important to keep in mind for later understanding. It may be best to first
+become familiar with the examples in Chapter 2 to gain some motivation for
+the language.
+If you have some knowledge of set theory, you may wish to study this
+chapter in conjunction with the formal set-theoretical description of the
+Metamath language in Appendix C.
+We will use the name “Metamath” to mean either the Metamath computer
+language or the Metamath software associated with the computer language.
+We will not distinguish these two when the context is clear.
+1 [59, p. 84].
+
+111
+
+112
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+The next section contains the complete specification of the Metamath
+language. It serves as an authoritative reference and presents the syntax
+in enough detail to write a parser and proof verifier. The specification is
+terse and it is probably hard to learn the language directly from it, but we
+include it here for those impatient people who prefer to see everything up
+front before looking at verbose expository material. Later sections explain
+this material and provide examples. We will repeat the definitions in those
+sections, and you may skip the next section at first reading and proceed to
+Section 4.2 (p. 116).
+
+4.1
+
+Specification of the Metamath Language
+Sometimes one has to say difficult things, but one ought to say
+them as simply as one knows how.
+G. H. Hardy2
+
+4.1.1
+
+Preliminaries
+
+A Metamath database is built up from a top-level source file together with
+any source files that are brought in through file inclusion commands (see
+below). The only characters that are allowed to appear in a Metamath source
+file are the 94 non-whitespace printable ascii characters, which are digits,
+upper and lower case letters, and the following 32 special characters:
+! " # $ % & ’ ( ) * + , - . / :
+; < = > ? @ [ \ ] ^ _ ‘ { | } ~
+plus the following characters which are the “white space” characters: space
+(a printable character), tab, carriage return, line feed, and form feed. We
+will use typewriter font to display the printable characters.
+A Metamath database consists of a sequence of three kinds of tokens
+separated by white space (which is any sequence of one or more white
+space characters). The set of keyword tokens is ${, $}, $c, $v, $f, $e, $d,
+$a, $p, $., $=, $(, $), $[, and $]. The last four are called auxiliary or
+preprocessing keywords. A label token consists of any combination of letters,
+digits, and the characters hyphen, underscore, and period. A math symbol
+token may consist of any combination of the 93 printable standard ascii
+characters other than space or $ . All tokens are case-sensitive.
+2 As quoted in [16], p. 273.
+
+4.1. SPECIFICATION OF THE METAMATH LANGUAGE
+
+4.1.2
+
+113
+
+Preprocessing
+
+The token $( begins a comment and $) ends a comment. Comments may
+contain any of the 94 non-whitespace printable characters and white space,
+except they may not contain the 2-character sequences $( or $) (comments
+do not nest). Comments are ignored (treated like white space) for the purpose
+of parsing, e.g., $( $[ $) is a comment. See p. 140 for comment typesetting
+conventions; these conventions may be ignored for the purpose of parsing.
+A file inclusion command consists of $[ followed by a file name
+followed by $]. It is only allowed in the outermost scope (i.e., not between ${
+and $}) and must not be inside a statement (e.g., it may not occur between
+the label of a $a statement and its $.). The file name may not contain a $
+or white space. The file must exist. The case-sensitivity of its name follows
+the conventions of the operating system. The contents of the file replace
+the inclusion command. Included files may include other files. Only the
+first reference to a given file is included; any later references to the same
+file (whether in the top-level file or in included files) cause the inclusion
+command to be ignored (treated like white space). A verifier may assume
+that file names with different strings refer to different files for the purpose of
+ignoring later references. A file self-reference is ignored, as is any reference
+to the top-level file (to avoid loops). Included files may not include a $(
+without a matching $), may not include a $[ without a matching $], and
+may not include incomplete statements (e.g., a $a without a matching $.). It
+is currently unspecified if path references are relative to the process’ current
+directory or the file’s containing directory, so databases should avoid using
+pathname separators (e.g., “/”) in file names.
+Like all tokens, the $(, $), $[, and $] keywords must be surrounded by
+white space.
+
+4.1.3
+
+Basic Syntax
+
+After preprocessing, a database will consist of a sequence of statements.
+These are the scoping statements ${ and $}, along with the $c, $v, $f, $e,
+$d, $a, and $p statements.
+A scoping statement consists only of its keyword, ${ or $}. A ${
+begins a block and a matching $} ends the block. Every ${ must have a
+matching $}. Defining it recursively, we say a block contains a sequence of
+zero or more tokens other than ${ and $} and possibly other blocks. There
+is an outermost block not bracketed by ${ $}; the end of the outermost
+block is the end of the database.
+A $v or $c statement consists of the keyword token $v or $c respectively, followed by one or more math symbols, followed by the $. token.
+These statements declare the math symbols to be variables or constants
+respectively. The same math symbol may not occur twice in a given $v or
+$c statement.
+
+114
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+A math symbol becomes active when declared and stays active until the
+end of the block in which it is declared. A variable may not be declared a
+second time while it is active, but it may be declared again (as a variable, but
+not as a constant) after it becomes inactive. A constant must be declared in
+the outermost block and may not be declared a second time.
+A $f statement consists of a label, followed by $f, followed by its
+typecode (an active constant), followed by an active variable, followed by
+the $. token. A $e statement consists of a label, followed by $e, followed
+by its typecode (an active constant), followed by zero or more active math
+symbols, followed by the $. token. A hypothesis is a $f or $e statement.
+The type declared by a $f statement for a given label is global even if the
+variable is not (e.g., a database may not have wff P in one local scope nd
+class P in another).
+A simple $d statement consists of $d, followed by two different active
+variables, followed by the $. token. A compound $d statement consists
+of $d, followed by three or more variables (all different), followed by the
+$. token. The order of the variables in a $d statement is unimportant. A
+compound $d statement is equivalent to a set of simple $d statements, one
+for each possible pair of variables occurring in the compound $d statement.
+Henceforth in this specification we shall assume all $d statements are simple.
+A $d statement is also called a disjoint (or distinct) variable restriction.
+A $a statement consists of a label, followed by $a, followed by its
+typecode (an active constant), followed by zero or more active math symbols,
+followed by the $. token. A $p statement consists of a label, followed
+by $p, followed by its typecode (an active constant), followed by zero or
+more active math symbols, followed by $=, followed by a sequence of labels,
+followed by the $. token. An assertion is a $a or $p statement.
+A $f, $e, or $d statement is active from the place it occurs until the
+end of the block it occurs in. A $a or $p statement is active from the place
+it occurs through the end of the database. There may not be two active $f
+statements containing the same variable. Each variable in a $e, $a, or $p
+statement must exist in an active $f statement.3
+Each label token must be unique, and no label token may match any
+math symbol token.4
+The set of mandatory variables associated with an assertion is the set
+of (zero or more) variables in the assertion and in any active $e statements.
+The (possibly empty) set of mandatory hypotheses is the set of all active
+$f statements containing mandatory variables, together with all active $e
+statements. The set of mandatory $d statements associated with an
+assertion are those active $d statements whose variables are both among the
+assertion’s mandatory variables.
+3 This requirement can greatly simplify the unification algorithm (substitution calculation) required by proof verification.
+4 This restriction was added on June 24, 2006. It is not theoretically necessary but is
+imposed to make it easier to write certain parsers.
+
+4.1. SPECIFICATION OF THE METAMATH LANGUAGE
+
+4.1.4
+
+115
+
+Proof Verification
+
+The sequence of labels between the $= and $. tokens in a $p statement is
+a proof. Each label in a proof must be the label of an active statement
+other than the $p statement itself; thus a label must refer either to an active
+hypothesis of the $p statement or to an earlier assertion.
+An expression is a sequence of math symbols. A substitution map
+associates a set of variables with a set of expressions. It is acceptable for a
+variable to be mapped to an expression containing it. A substitution is the
+simultaneous replacement of all variables in one or more expressions with
+the expressions that the variables map to.
+A proof is scanned in order of its label sequence. If the label refers to an
+active hypothesis, the expression in the hypothesis is pushed onto a stack.
+If the label refers to an assertion, a (unique) substitution must exist that,
+when made to the mandatory hypotheses of the referenced assertion, causes
+them to match the topmost (i.e. most recent) entries of the stack, in order
+of occurrence of the mandatory hypotheses, with the topmost stack entry
+matching the last mandatory hypothesis of the referenced assertion. As many
+stack entries as there are mandatory hypotheses are then popped from the
+stack. The same substitution is made to the referenced assertion, and the
+result is pushed onto the stack. After the last label in the proof is processed,
+the stack must have a single entry that matches the expression in the $p
+statement containing the proof.
+A proof may contain a ? in place of a label to indicate an unknown step
+(Section 4.4.6). A proof verifier may ignore any proof containing ? but should
+warn the user that the proof is incomplete.
+A compressed proof is an alternate proof notation described in Appendix B; also see references to “compressed proof” in the Index. Compressed
+proofs are a Metamath language extension which a complete proof verifier
+should be able to parse and verify.
+Verifying Disjoint Variable Restrictions
+Each substitution made in a proof must be checked to verify that any disjoint
+variable restrictions are satisfied, as follows.
+If two variables replaced by a substitution exist in a mandatory $d
+statement of the assertion referenced, the two expressions resulting from the
+substitution must satisfy the following conditions. First, the two expressions
+must have no variables in common. Second, each possible pair of variables,
+one from each expression, must exist in an active $d statement of the $p
+statement containing the proof.
+This ends the specification of the Metamath language; see Appendix E
+for its syntax in Extended Backus–Naur Form (EBNF).
+
+116
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+4.2
+
+The Basic Keywords
+
+Our expository material begins here.
+Like most computer languages, Metamath takes its input from one or
+more source files which contain characters expressed in the standard ascii
+(American Standard Code for Information Interchange) code for computers.
+A source file consists of a series of tokens, which are strings of non-whitespace
+printable characters (from the set of 94 shown on p. 112) separated by white
+space (spaces, tabs, carriage returns, line feeds, and form feeds). Any string
+consisting only of these characters is treated the same as a single space. The
+non-whitespace printable characters that Metamath recognizes are the 94
+characters on standard ascii keyboards.
+Metamath has the ability to join several files together to form its input
+(Section 4.4.4). We call the aggregate contents of all the files after they have
+been joined together a database to distinguish it from an individual source
+file. The tokens in a database consist of keywords, which are built into the
+language, together with two kinds of user-defined tokens called labels and
+math symbols. (Often we will simply say symbol instead of math symbol
+for brevity). The set of basic keywords is $c, $v, $e, $f, $d, $a, $p, $=,
+$., ${, and $}. This is the complete set of syntactical elements of what we
+call the basic language of Metamath, and with them you can express all
+of the mathematics that were intended by the design of Metamath. You
+should make it a point to become very familiar with them. Table 4.1 lists
+the basic keywords along with a brief description of their functions. For now,
+this description will give you only a vague notion of what the keywords are
+for; later we will describe the keywords in detail.
+Table 4.1: Summary of the basic Metamath keywords
+Keyword
+$c
+$v
+$d
+$f
+$e
+$a
+$p
+$=
+$.
+${
+$}
+
+Description
+Constant symbol declaration
+Variable symbol declaration
+Disjoint variable restriction
+Variable-type (“floating”) hypothesis
+Logical (“essential”) hypothesis
+Axiomatic assertion
+Provable assertion
+Start of proof in $p statement
+End of the above statement types
+Start of block
+End of block
+
+There are some additional keywords, called auxiliary keywords that
+
+4.2. THE BASIC KEYWORDS
+
+117
+
+help make Metamath more practical. These are part of the extended
+language. They provide you with a means to put comments into a Metamath
+source file and reference other source files. We will introduce these in later
+sections. Table 4.2 summarizes them so that you can recognize them now if
+you want to peruse some source files while learning the basic keywords.
+Table 4.2: Auxiliary Metamath keywords
+Keyword
+$(
+$)
+$[
+$]
+
+Description
+Start of comment
+End of comment
+Start of included source file name
+End of included source file name
+
+Unlike those in some computer languages, the keywords are short twocharacter sequences rather than English-like words. While this may make
+them slightly more difficult to remember at first, their brevity allows them
+to blend in with the mathematics being described, not distract from it, like
+punctuation marks.
+
+4.2.1
+
+User-Defined Tokens
+
+As you may have noticed, all keywords begin with the $ character. This
+mundane monetary symbol is not ordinarily used in higher mathematics
+(outside of grant proposals), so we have appropriated it to distinguish the
+Metamath keywords from ordinary mathematical symbols. The $ character
+is thus considered special and may not be used as a character in a userdefined token. All tokens and keywords are case-sensitive; for example, n
+is considered to be a different character from N. Case-sensitivity makes the
+available ascii character set as rich as possible.
+Math Symbol Tokens
+Math symbols are tokens used to represent the symbols that appear in
+ordinary mathematical formulas. They may consist of any combination
+of the 93 non-whitespace printable ascii characters other than $ . Some
+examples are x, +, (, |-, !%@?&, and bounded. For readability, it is best
+to try to make these look as similar to actual mathematical symbols as
+possible, within the constraints of the ascii character set, in order to make
+the resulting mathematical expressions more readable.
+In the Metamath language, you express ordinary mathematical formulas and statements as sequences of math symbols such as 2 + 2 = 4 (five
+
+118
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+symbols, all constants).5 They may even be English sentences, as in E is
+closed and bounded (five symbols)—here E would be a variable and the
+other four symbols constants. In principle, a Metamath database could be
+constructed to work with almost any unambiguous English-language mathematical statement, but as a practical matter the definitions needed to provide
+for all possible syntax variations would be cumbersome and distracting and
+possibly have subtle pitfalls accidentally built in. We generally recommend
+that you express mathematical statements with compact standard mathematical symbols whenever possible and put their English-language descriptions
+in comments. Axioms and definitions ($a statements) are the only places
+where Metamath will not detect an error, and doing this will help reduce
+the number of definitions needed.
+You are free to use any tokens you like for math symbols. Appendix A
+recommends token names to use for symbols in set theory, and we suggest
+you adopt these in order to be able to include the set.mm set theory database
+in your database. For printouts, you can convert the tokens in a database to
+standard mathematical symbols with the LATEX typesetting program. The
+Metamath command open tex filename produces output that can be read
+by LATEX. The correspondence between tokens and the actual symbols is
+made by latexdef statements inside a special database comment tagged
+with $t. You can edit this comment to change the definitions or add new
+ones. Appendix A describes how to do this in more detail.
+Label Tokens
+Label tokens are used to identify Metamath statements for later reference.
+Label tokens may contain only letters, digits, and the three characters period,
+hyphen, and underscore:
+. - _
+A label is declared by placing it immediately before the keyword of the
+statement it identifies. For example, the label axiom.1 might be declared as
+follows:
+axiom.1 $a |- x = x $.
+Each $e, $f, $a, and $p statement in a database must have a label
+declared for it. No other statement types may have label declarations. Every
+label must be unique.
+A label (and the statement it identifies) is referenced by including the
+label between the $= and $. keywords in a $p statement. The sequence
+of labels between these two keywords is called a proof. An example of a
+statement with a proof that we will encounter later (Section 4.3) is
+5 To eliminate ambiguity with other expressions, this is expressed in the set theory
+database set.mm as |- ( 2 + 2 ) = 4 , whose LATEX equivalent is ` (2 + 2) = 4. The `
+means “is a theorem” and the parentheses allow explicit associative grouping.
+
+4.2. THE BASIC KEYWORDS
+
+119
+
+wnew $p wff ( s -> ( r -> p ) )
+$= ws wr wp w2 w2 $.
+You don’t have to know what this means just yet, but you should know
+that the label wnew is declared by this $p statement and that the labels ws,
+wr, wp, and w2 are assumed to have been declared earlier in the database
+and are referenced here.
+
+4.2.2
+
+Constants and Variables
+
+An expression is any sequence of math symbols, possibly empty.
+The basic Metamath language has two kinds of math symbols: constants
+and variables. In a Metamath proof, a constant may not be substituted
+with any expression. A variable can be substituted with any expression. This
+sequence may include other variables and may even include the variable being
+substituted. This substitution takes place when proofs are verified, and it will
+be described in Section 4.3. The $f statement (described later in Section 4.2.5)
+is used to specify the type of a variable (i.e. what kind of variable it is) and
+give it a meaning typically associated with a “metavariable”6 in ordinary
+mathematics; for example, a variable may be specified to be a wff or wellformed formula (in logic), a set (in set theory), or a non-negative integer (in
+number theory).
+
+4.2.3
+
+The $c and $v Declaration Statements
+
+Constants are introduced or declared with $c statements, and variables are
+declared with $v statements. A simple declaration statement introduces a
+single constant or variable. Its syntax is one of the following:
+$c math-symbol $.
+$v math-symbol $.
+The notation math-symbol means any math symbol token.
+Some examples of simple declaration statements are:
+$c + $.
+$c -> $.
+$c ( $.
+$v x $.
+$v y2 $.
+The characters in a math symbol being declared are irrelevant to Metamath; for example, we could declare a right parenthesis to be a variable,
+6 A metavariable is a variable that ranges over the syntactical elements of the object
+language being discussed; for example, one metavariable might represent a variable of
+the object language and another metavariable might represent a formula in the object
+language.
+
+120
+
+CHAPTER 4. THE METAMATH LANGUAGE
+$v ) $.
+
+although this would be unconventional.
+A compound declaration statement is a shorthand for declaring several
+symbols at once. Its syntax is one of the following:
+$c math-symbol · · · math-symbol $.
+$v math-symbol · · · math-symbol $.
+Here, the ellipsis (. . . ) means any number of math-symbol s.
+An example of a compound declaration statement is:
+$v x y mu $.
+This is equivalent to the three simple declaration statements
+$v x $.
+$v y $.
+$v mu $.
+There are certain rules on where in the database math symbols may be
+declared, what sections of the database are aware of them (i.e. where they
+are “active”), and when they may be declared more than once. These will
+be discussed in Section 4.2.8 and specifically on p. 134.
+
+4.2.4
+
+The $d Statement
+
+The $d statement is called a disjoint-variable restriction. The syntax of
+the simple version of this statement is
+$d variable variable $.
+where each variable is a previously declared variable and the two variable s
+are different. (More specifically, each variable must be an active variable,
+which means there must be a previous $v statement whose scope includes
+the $d statement. These terms will be defined when we discuss scoping
+statements in Section 4.2.8.)
+In ordinary mathematics, formulas may arise that are true if the variables
+in them are distinct, but become false when those variables are made identical.
+For example, the formula in logic ∃x x 6= y, which means “for a given y,
+there exists an x that is not equal to y,” is true in most mathematical
+theories (namely all non-trivial theories, i.e. those that describe more than
+one individual, such as arithmetic). However, if we substitute y with x, we
+obtain ∃x x 6= x, which is always false, as it means “there exists something
+that is not equal to itself.”7 The $d statement allows you to specify a
+7 If you are a logician, you will recognize this as the improper substitution of a free
+variable with a bound variable. Metamath makes no inherent distinction between free and
+bound variables; instead, you let Metamath know what substitutions are permissible by
+using $d statements in the right way in your axiom system.
+
+4.2. THE BASIC KEYWORDS
+
+121
+
+restriction that forbids the substitution of one variable with another. In this
+case, we would use the statement
+$d x y $.
+to specify this restriction.
+The order in which the variables appear in a $d statement is not important.
+We could also use
+$d y x $.
+The $d statement is actually more general than this, as the “disjoint” in
+its name suggests. The full meaning is that if any substitution is made to
+its two variables (during the course of a proof that references a $a or $p
+statement associated with the $d), the two expressions that result from the
+substitution must have no variables in common. In addition, each possible
+pair of variables, one from each expression, must be in a $d statement
+associated with the statement being proved. (This requirement forces the
+statement being proved to “inherit” the original disjoint variable restriction.)
+For example, suppose u is a variable. If the restriction
+$d A B $.
+has been specified for a theorem referenced in a proof, we may not substitute
+A with a + u and B with b + u because these two symbol sequences have
+the variable u in common. Furthermore, if a and b are variables, we may not
+substitute A with a and B with b unless we have also specified $d a b for
+the theorem being proved; in other words, the $d property associated with a
+pair of variables must be effectively preserved after substitution.
+The $d statement does not mean “the two variables may not be substituted
+with the same thing,” as you might think at first. For example, substituting
+each of A and B in the above example with identical symbol sequences
+consisting only of constants does not cause a disjoint variable conflict, because
+two symbol sequences have no variables in common (since they have no
+variables, period). Similarly, a conflict will not occur by substituting the two
+variables in a $d statement with the empty symbol sequence.
+The $d statement does not have a direct counterpart in ordinary mathematics, partly because the variables of Metamath are not really the same as
+the variables of ordinary mathematics but rather are metavariables ranging
+over them (as well as over other kinds of symbols and groups of symbols).
+Depending on the situation, we may informally interpret the $d statement
+in different ways. Suppose, for example, that x and y are variables ranging
+over numbers (more precisely, that x and y are metavariables ranging over
+variables that range over numbers), and that ph (ϕ) and ps (ψ) are variables
+(more precisely, metavariables) ranging over formulas. We can make the
+following interpretations that correspond to the informal language of ordinary
+mathematics:
+
+122
+
+CHAPTER 4. THE METAMATH LANGUAGE
+$d x y $. means “assume x and y are distinct variables.”
+$d x ph $. means “assume x does not occur in ϕ.”
+$d ph ps $. means “assume ϕ and ψ have no variables
+in common.”
+
+Compound $d Statements
+The compound version of the $d statement is a shorthand for specifying
+several variables whose substitutions must be pairwise disjoint. Its syntax is:
+$d variable · · · variable $.
+Here, variable represents the token of a previously declared variable (specifically, an active variable) and all variable s are different. The compound $d
+statement is internally broken up by Metamath into one simple $d statement
+for each possible pair of variables in the original $d statement. For example,
+$d w x y z $.
+is equivalent to
+$d w x $.
+$d w y $.
+$d w z $.
+$d x y $.
+$d x z $.
+$d y z $.
+Two or more simple $d statements specifying the same variable pair
+are internally combined into a single $d statement. Thus the set of three
+statements
+$d x y $. $d x y $. $d y x $.
+is equivalent to
+$d x y $.
+Similarly, compound $d statements, after being internally broken up,
+internally have their common variable pairs combined. For example the set
+of statements
+$d x y A $. $d x y B $.
+is equivalent to
+$d x y $. $d x A $. $d y A $. $d x y $. $d x B $. $d y B $.
+which is equivalent to
+
+4.2. THE BASIC KEYWORDS
+
+123
+
+$d x y $. $d x A $. $d y A $. $d x B $. $d y B $.
+Metamath automatically verifies that all $d restrictions are met whenever
+it verifies proofs. $d statements are never referenced directly in proofs (this
+is why they do not have labels), but Metamath is always aware of which ones
+must be satisfied (i.e. are active) and will notify you with an error message
+if any violation occurs.
+To illustrate how Metamath detects a missing $d statement, we will look
+at the following example from the set.mm database.
+$d x z $. $d y z $.
+$( Theorem to add distinct quantifier to atomic formula. $)
+ax17eq $p |- ( x = y -> A. z x = y ) $=...
+This statement has the obvious requirement that z must be distinct from
+x in theorem ax17eq that states x = y → ∀z x = y (well, obvious if you’re a
+logician, for otherwise we could conclude x = y → ∀x x = y, which is false
+when the free variables x and y are equal).
+Let’s look at what happens if we edit the database to comment out this
+requirement.
+$( $d x z $. $) $d y z $.
+$( Theorem to add distinct quantifier to atomic formula. $)
+ax17eq $p |- ( x = y -> A. z x = y ) $=...
+When it tries to verify the proof, Metamath will tell you that x and z
+must be disjoint, because one of its steps references an axiom or theorem
+that has this requirement.
+MM> verify proof ax17eq
+ax17eq ?Error at statement 1918, label "ax17eq", type "$p":
+vz wal wi vx vy vz ax-13 vx vy weq vz vx ax-c16 vx vy
+^^^^^
+There is a disjoint variable ($d) violation at proof step 29.
+Assertion "ax-c16" requires that variables "x" and "y" be
+disjoint. But "x" was substituted with "z" and "y" was
+substituted with "x". The assertion being proved, "ax17eq",
+does not require that variables "z" and "x" be disjoint.
+We can see the substitutions into ax-c16 with the following command.
+MM> show proof ax17eq / detailed_step 29
+Proof step 29: pm2.61dd.2=ax-c16 $a |- ( A. z z = x -> ( x =
+y -> A. z x = y ) )
+This step assigns source "ax-c16" ($a) to target "pm2.61dd.2"
+($e). The source assertion requires the hypotheses "wph"
+
+124
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+($f, step 26), "vx" ($f, step 27), and "vy" ($f, step 28).
+The parent assertion of the target hypothesis is "pm2.61dd"
+($p, step 36).
+The source assertion before substitution was:
+ax-c16 $a |- ( A. x x = y -> ( ph -> A. x ph ) )
+The following substitutions were made to the source
+assertion:
+Variable Substituted with
+x
+z
+y
+x
+ph
+x = y
+The target hypothesis before substitution was:
+pm2.61dd.2 $e |- ( ph -> ch )
+The following substitutions were made to the target
+hypothesis:
+Variable Substituted with
+ph
+A. z z = x
+ch
+( x = y -> A. z x = y )
+The disjoint variable restrictions of ax-c16 can be seen from the show
+statement command. The line that begins “Its mandatory disjoint variable pairs are:. . . ” lists any $d variable pairs in brackets.
+MM> show statement ax-c16/full
+Statement 3033 is located on line 9338 of the file "set.mm".
+"Axiom of Distinct Variables. ..."
+ax-c16 $a |- ( A. x x = y -> ( ph -> A. x ph ) ) $.
+Its mandatory hypotheses in RPN order are:
+wph $f wff ph $.
+vx $f setvar x $.
+vy $f setvar y $.
+Its mandatory disjoint variable pairs are: <x,y>
+The statement and its hypotheses require the variables: x y
+ph
+The variables it contains are: x y ph
+Since Metamath will always detect when $d statements are needed for
+a proof, you don’t have to worry too much about forgetting to put one in;
+it can always be added if you see the error message above. If you put in
+unnecessary $d statements, the worst that could happen is that your theorem
+might not be as general as it could be, and this may limit its use later on.
+On the other hand, when you introduce axioms ($a statements), you must
+be very careful to properly specify the necessary associated $d statements
+since Metamath has no way of knowing whether your axioms are correct. For
+example, Metamath would have no idea that ax-c16, which we are telling it
+
+4.2. THE BASIC KEYWORDS
+
+125
+
+is an axiom of logic, would lead to contradictions if we omitted its associated
+$d statement.
+You may wonder if it is possible to develop standard mathematics in the
+Metamath language without the $d statement, since it seems like a nuisance
+that complicates proof verification. The $d statement is not needed in certain
+subsets of mathematics such as propositional calculus. However, dummy
+variables and their associated $d statements are impossible to avoid in proofs
+in standard first-order logic as well as in the variant used in set.mm. In
+fact, there is no upper bound to the number of dummy variables that might
+be needed in a proof of a theorem of first-order logic containing 3 or more
+variables, as shown by H. Andréka [50]. A first-order system that avoids
+them entirely is given in [41]; the trick there is simply to embed harmlessly
+the necessary dummy variables into a theorem being proved so that they
+aren’t “dummy” anymore, then interpret the resulting longer theorem so as
+to ignore the embedded dummy variables. If this interests you, the system in
+set.mm obtained from ax-1 through ax-c14 in set.mm, and deleting ax-c16
+and ax-5, requires no $d statements but is logically complete in the sense
+described in [41]. This means it can prove any theorem of first-order logic
+as long as we add to the theorem an antecedent that embeds dummy and
+any other variables that must be distinct. In a similar fashion, axioms for
+set theory can be devised that do not require distinct variable provisos, as
+explained at http://us.metamath.org/mpeuni/mmzfcnd.html. Together,
+these in principle allow all of mathematics to be developed under Metamath
+without a $d statement, although the length of the resulting theorems will
+grow as more and more dummy variables become required in their proofs.
+
+4.2.5
+
+The $f and $e Statements
+
+Metamath has two kinds of hypotheses, the $f or variable-type hypothesis
+and the $e or logical hypothesis.8 The letters f and e stand for “floating”
+(roughly meaning used only if relevant) and “essential” (meaning always
+used) respectively, for reasons that will become apparent when we discuss
+frames in Section 4.2.7 and scoping in Section 4.2.8. The syntax of these are
+as follows:
+label $f typecode variable $.
+label $e typecode math-symbol · · · math-symbol $.
+A hypothesis must have a label. The expression in a $e hypothesis consists
+of a typecode (an active constant math symbol) followed by a sequence of
+zero or more math symbols. Each math symbol (including constant and
+variable) must be a previously declared constant or variable. (In addition,
+8 Strictly speaking, the $d statement is also a hypothesis, but it is never directly
+referenced in a proof, so we call it a restriction rather than a hypothesis to lessen confusion.
+The checking for violations of $d restrictions is automatic and built into Metamath’s
+proof-checking algorithm.
+
+126
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+each math symbol must be active, which will be covered when we discuss
+scoping statements in Section 4.2.8.) You use a $f hypothesis to specify the
+nature or type of a variable (such as “let x be an integer”) and use a $e
+hypothesis to express a logical truth (such as “assume x is prime”) that must
+be established in order for an assertion requiring it to also be true.
+A variable must have its type specified in a $f statement before it may
+be used in a $e, $a, or $p statement. There may be only one (active) $f
+statement for a given variable. (“Active” is defined in Section 4.2.8.)
+In ordinary mathematics, theorems are often expressed in the form “Assume P ; then Q,” where Q is a statement that you can derive if you start with
+statement P .9 In the Metamath language, you would express mathematical
+statement P as a hypothesis (a $e Metamath language statement in this
+case) and statement Q as a provable assertion (a $p statement).
+Some examples of hypotheses you might encounter in logic and set theory
+are
+stmt1 $f wff P $.
+stmt2 $f setvar x $.
+stmt3 $e |- ( P -> Q ) $.
+Informally, these would be read, “Let P be a well-formed-formula,” “Let x
+be an (individual) variable,” and “Assume we have proved P → Q.” The
+turnstile symbol ` is commonly used in logic texts to mean “a proof exists
+for.”
+To summarize:
+• A $f hypothesis tells Metamath the type or kind of its variable. It is
+analogous to a variable declaration in a computer language that tells
+the compiler that a variable is an integer or a floating-point number.
+• The $e hypothesis corresponds to what you would usually call a “hypothesis” in ordinary mathematics.
+Before an assertion ($a or $p statement) can be referenced in a proof,
+all of its associated $f and $e hypotheses (i.e. those $e hypotheses that are
+active) must be satisfied (i.e. established by the proof). The meaning of
+“associated” (which we will call mandatory in Section 4.2.7) will become
+clear when we discuss scoping later.
+Note that after any $f, $e, $a, or $p token there is a required typecode.
+The typecode is a constant used to enforce types of expressions. This will
+9 A stronger version of a theorem like this would be the single formula P → Q (P
+implies Q) from which the weaker version above follows by the rule of modus ponens in
+logic. We are not discussing this stronger form here. In the weaker form, we are saying
+only that if we can prove P , then we can prove Q. In a logician’s language, if x is the
+only free variable in P and Q, the stronger form is equivalent to ∀x(P → Q) (for all x,
+P implies Q), whereas the weaker form is equivalent to ∀xP → ∀xQ. The stronger form
+implies the weaker, but not vice-versa. To be precise, the weaker form of the theorem is
+more properly called an “inference” rather than a theorem.
+
+4.2. THE BASIC KEYWORDS
+
+127
+
+become clearer once we learn more about assertions ($a and $p statements).
+An example may also clarify their purpose. In the set.mm database, the
+following typecodes are used:
+• wff : Well-formed formula (wff) symbol (read: “the following symbol
+sequence is a wff”).
+• ` : Turnstile (read: “the following symbol sequence is provable” or “a
+proof exists for”).
+• setvar : Individual set variable type (read: “the following is an
+individual set variable”). Note that this is not the type of an arbitrary
+set expression, instead, it is used to ensure that there is only a single
+symbol used after quantifiers like for-all (∀) and there-exists (∃).
+• class : An expression that is a syntactically valid class expression.
+All valid set expressions are also valid class expression, so expressions
+of sets normally have the class typecode. Use the class typecode,
+not the setvar typecode, for the type of set expressions unless you are
+specifically identifying a single set variable.
+
+4.2.6
+
+Assertions ($a and $p Statements)
+
+There are two types of assertions, $a statements (axiomatic assertions)
+and $p statements (provable assertions). Their syntax is as follows:
+label $a typecode math-symbol . . . math-symbol $.
+label $p typecode math-symbol . . . math-symbol $= proof $.
+An assertion always requires a label. The expression in an assertion consists of
+a typecode (an active constant) followed by a sequence of zero or more math
+symbols. Each math symbol, including any constant, must be a previously
+declared constant or variable. (In addition, each math symbol must be active,
+which will be covered when we discuss scoping statements in Section 4.2.8.)
+A $a statement is usually a definition of syntax (for example, if P and
+Q are wffs then so is (P → Q)), an axiom of ordinary mathematics (for
+example, x = x), or a definition of ordinary mathematics (for example, x 6= y
+means ¬x = y). A $p statement is a claim that a certain combination of
+math symbols follows from previous assertions and is accompanied by a proof
+that demonstrates it.
+Assertions can also be referenced in (later) proofs in order to derive new
+assertions from them. The label of an assertion is used to refer to it in a
+proof. Section 4.3 will describe the proof in detail.
+Assertions also provide the primary means for communicating the mathematical results in the database to people. Proofs (when conveniently
+displayed) communicate to people how the results were arrived at.
+
+128
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+The $a Statement
+Axiomatic assertions ($a statements) represent the starting points from
+which other assertions ($p statements) are derived. Their most obvious use
+is for specifying ordinary mathematical axioms, but they are also used for
+two other purposes.
+First, Metamath needs to know the syntax of symbol sequences that
+constitute valid mathematical statements. A Metamath proof must be
+broken down into much more detail than ordinary mathematical proofs that
+you may be used to thinking of (even the “complete” proofs of formal logic).
+This is one of the things that makes Metamath a general-purpose language,
+independent of any system of logic or even syntax. If you want to use a
+substitution instance of an assertion as a step in a proof, you must first
+prove that the substitution is syntactically correct (or if you prefer, you must
+“construct” it), showing for example that the expression you are substituting
+for a wff metavariable is a valid wff. The $a statement is used to specify
+those combinations of symbols that are considered syntactically valid, such
+as the legal forms of wffs.
+Second, $a statements are used to specify what are ordinarily thought
+of as definitions, i.e. new combinations of symbols that abbreviate other
+combinations of symbols. Metamath makes no distinction between axioms
+and definitions. Indeed, it has been argued that such distinction should not
+be made even in ordinary mathematics; see Section 4.5, which discusses the
+philosophy of definitions. Section 3.4 discusses some technical requirements
+for definitions. In set.mm we adopt the convention of prefixing axiom labels
+with ax- and definition labels with df-.
+The results that can be derived with the Metamath language are only as
+good as the $a statements used as their starting point. We cannot stress this
+too strongly. For example, Metamath will not prevent you from specifying
+x 6= x as an axiom of logic. It is essential that you scrutinize all $a statements
+with great care. Because they are a source of potential pitfalls, it is best
+not to add new ones (usually new definitions) casually; rather you should
+carefully evaluate each one’s necessity and advantages.
+Once you have in place all of the basic axioms and rules of a mathematical
+theory, the only $a statements that you will be adding will be what are
+ordinarily called definitions. In principle, definitions should be in some sense
+eliminable from the language of a theory according to some convention (usually involving logical equivalence or equality). The most common convention
+is that any formula that was syntactically valid but not provable before the
+definition was introduced will not become provable after the definition is
+introduced. In an ideal world, definitions should not be present at all if
+one is to have absolute confidence in a mathematical result. However, they
+are necessary to make mathematics practical, for otherwise the resulting
+formulas would be extremely long and incomprehensible. Since the nature of
+definitions (in the most general sense) does not permit them to automatically
+
+4.2. THE BASIC KEYWORDS
+
+129
+
+be verified as “proper,” the judgment of the mathematician is required to
+ensure it. (In set.mm effort was made to make almost all definitions directly
+eliminable and thus minimize the need for such judgment.)
+If you are not a mathematician, it may be best not to add or change any
+$a statements but instead use the mathematical language already provided
+in standard databases. This way Metamath will not allow you to make a
+mistake (i.e. prove a false result).
+
+4.2.7
+
+Frames
+
+We now introduce the concept of a collection of related Metamath statements
+called a frame. Every assertion ($a or $p statement) in the database has an
+associated frame.
+A frame is a sequence of $d, $f, and $e statements (zero or more of
+each) followed by one $a or $p statement, subject to certain conditions we
+will describe. For simplicity we will assume that all math symbol tokens used
+are declared at the beginning of the database with $c and $v statements
+(which are not properly part of a frame). Also for simplicity we will assume
+there are only simple $d statements (those with only two variables) and
+imagine any compound $d statements (those with more than two variables)
+as broken up into simple ones.
+A frame groups together those hypotheses (and $d statements) relevant
+to an assertion ($a or $p statement). The statements in a frame may or may
+not be physically adjacent in a database; we will cover this in our discussion
+of scoping statements in Section 4.2.8.
+A frame has the following properties:
+1. The set of variables contained in its $f statements must be identical
+to the set of variables contained in its $e, $a, and/or $p statements.
+In other words, each variable in a $e, $a, or $p statement must have
+an associated “variable type” defined for it in a $f statement.
+2. No two $f statements may contain the same variable.
+3. Any $f statement must occur before a $e statement in which its variable
+occurs.
+The first property determines the set of variables occurring in a frame.
+These are the mandatory variables of the frame. The second property
+tells us there must be only one type specified for a variable. The last property
+is not a theoretical requirement but it makes parsing of the database easier.
+For our examples, we assume our database has the following declarations:
+$v P Q R $.
+$c -> ( ) |- wff $.
+
+130
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+The following sequence of statements, describing the modus ponens
+inference rule, is an example of a frame:
+wp $f wff P $.
+wq $f wff Q $.
+maj $e |- ( P -> Q ) $.
+min $e |- P $.
+mp $a |- Q $.
+The following sequence of statements is not a frame because R does not
+occur in the $e’s or the $a:
+wp $f wff P $.
+wq $f wff Q $.
+wr $f wff R $.
+maj $e |- ( P -> Q ) $.
+min $e |- P $.
+mp $a |- Q $.
+The following sequence of statements is not a frame because Q does not
+occur in a $f:
+wp $f wff P $.
+maj $e |- ( P -> Q ) $.
+min $e |- P $.
+mp $a |- Q $.
+The following sequence of statements is not a frame because the $a
+statement is not the last one:
+wp $f wff P $.
+wq $f wff Q $.
+maj $e |- ( P -> Q ) $.
+mp $a |- Q $.
+min $e |- P $.
+Associated with a frame is a sequence of mandatory hypotheses. This
+is simply the set of all $f and $e statements in the frame, in the order they
+appear. A frame can be referenced in a later proof using the label of the
+$a or $p assertion statement, and the proof makes an assignment to each
+mandatory hypothesis in the order in which it appears. This means the
+order of the hypotheses, once chosen, must not be changed so as not to affect
+later proofs referencing the frame’s assertion statement. (The Metamath
+proof verifier will, of course, flag an error if a proof becomes incorrect by
+doing this.) Since proofs make use of “Reverse Polish notation,” described
+in Section 4.3, we call this order the RPN order of the hypotheses.
+
+4.2. THE BASIC KEYWORDS
+
+131
+
+Note that $d statements are not part of the set of mandatory hypotheses,
+and their order doesn’t matter (as long as they satisfy the fourth property for
+a frame described above). The $d statements specify restrictions on variables
+that must be satisfied (and are checked by the proof verifier) when expressions
+are substituted for them in a proof, and the $d statements themselves are
+never referenced directly in a proof.
+A frame with a $p (provable) statement requires a proof as part of the
+$p statement. Sometimes in a proof we want to make use of temporary or
+dummy variables that do not occur in the $p statement or its mandatory
+hypotheses. To accommodate this we define an extended frame as a frame
+together with zero or more $d and $f statements that reference variables not
+among the mandatory variables of the frame. Any new variables referenced
+are called the optional variables of the extended frame. If a $f statement
+references an optional variable it is called an optional hypothesis, and if
+one or both of the variables in a $d statement are optional variables it is
+called an optional disjoint-variable restriction. Properties 2 and 3 for
+a frame also apply to an extended frame.
+The concept of optional variables is not meaningful for frames with $a
+statements, since those statements have no proofs that might make use
+of them. There is no restriction on including optional hypotheses in the
+extended frame for a $a statement, but they serve no purpose.
+The following set of statements is an example of an extended frame,
+which contains an optional variable R and an optional hypothesis wr. In this
+example, we suppose the rule of modus ponens is not an axiom but is derived
+as a theorem from earlier statements (we omit its presumed proof). Variable
+R may be used in its proof if desired (although this would probably have no
+advantage in propositional calculus). Note that the sequence of mandatory
+hypotheses in RPN order is still wp, wq, maj, min (i.e. wr is omitted), and
+this sequence is still assumed whenever the assertion mp is referenced in a
+subsequent proof.
+wp $f wff P $.
+wq $f wff Q $.
+wr $f wff R $.
+maj $e |- ( P -> Q ) $.
+min $e |- P $.
+mp $p |- Q $= ... $.
+Every frame is an extended frame, but not every extended frame is a
+frame, as this example shows. The underlying frame for an extended frame
+is obtained by simply removing all statements containing optional variables.
+Any proof referencing an assertion will ignore any extensions to its frame,
+which means we may add or delete optional hypotheses at will without
+affecting subsequent proofs.
+The conceptually simplest way of organizing a Metamath database is as a
+sequence of extended frames. The scoping statements ${ and $} can be used
+
+132
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+to delimit the start and end of an extended frame, leading to the following
+possible structure for a database.
+($v and $c statements)
+${
+extended frame
+$}
+${
+extended frame
+$}
+..
+.
+In practice, this structure is inconvenient because we have to repeat any
+$f, $e, and $d statements over and over again rather than stating them once
+for use by several assertions. The scoping statements, which we will discuss
+next, allow this to be done. In principle, any Metamath database can be
+converted to the above format, and the above format is the most convenient
+to use when studying a Metamath database as a formal system(Appendix
+C). In fact, Metamath internally converts the database to the above format.
+The command show statement in the Metamath program will show you the
+contents of the frame for any $a or $p statement, as well as its extension in
+the case of a $p statement.
+During our discussion of scoping statements, it may be helpful to think in
+terms of the equivalent sequence of frames that will result when the database
+is parsed. Scoping (other than the limited use above to delimit frames) is
+not a theoretical requirement for Metamath but makes it more convenient.
+
+4.2.8
+
+Scoping Statements (${ and $})
+
+The scoping statements, ${ (start of block) and $} (end of block),
+provide a means for controlling the portion of a database over which certain
+statement types are recognized. The syntax of a scoping statement is very
+simple; it just consists of the statement’s keyword:
+${
+$}
+For example, consider the following database where we have stripped
+out all tokens except the scoping statement keywords. For the purpose of
+the discussion, we have added subscripts to the scoping statements; these
+subscripts do not appear in the actual database.
+${1 ${2 $}2 ${3 ${4 $}4 $}3 $}1
+Each ${ statement in this example is said to be matched with the $}
+statement that has the same subscript. Each pair of matched scoping
+
+4.2. THE BASIC KEYWORDS
+
+133
+
+statements defines a region of the database called a block. Blocks can be
+nested inside other blocks; in the example, the block defined by ${4 and $}4
+is nested inside the block defined by ${3 and $}3 as well as inside the block
+defined by ${1 and $}1 . In general, a block may be empty, it may contain
+only non-scoping statements,10 or it may contain any mixture of other blocks
+and non-scoping statements. (This is called a “recursive” definition of a
+block.)
+Associated with each block is a number called its nesting level that
+indicates how deeply the block is nested. The nesting levels of the blocks in
+our example are as follows:
+${ ${ $} ${ ${ $} $} $}
+| {z }
+| {z }
+2
+3
+|
+{z
+}
+2
+{z
+}
+|
+1
+|
+{z
+}
+0
+
+The entire database is considered to be one big block (the outermost block)
+with a nesting level of 0. The outermost block is not bracketed by scoping
+statements.11
+All non-scoping Metamath statements become recognized or active at
+the place where they appear.12 Certain of these statement types become
+inactive at the end of the block in which they appear; these statement types
+are:
+$c, $v, $d, $e, and $f.
+The other statement types remain active forever (i.e. through the end of the
+database); they are:
+$a and $p.
+Any statement (of these 7 types) located in the outermost block will remain
+active through the end of the database and thus are effectively “global”
+statements.
+All $c statements must be placed in the outermost block. Since they are
+therefore always global, they could be considered as belonging to both of the
+above categories.
+The scope of a statement is the set of statements that recognize it as
+active.
+The concept of “active” is also defined for math symbols. Math symbols
+(constants and variables) become active in the $c and $v statements that
+10 Those statements other than ${ and $}.
+11 The language was designed this way so that several source files can be joined together
+more easily.
+12 To keep things slightly simpler, we do not bother to define the concept of “active” for
+the scoping statements.
+
+134
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+declare them. A variable becomes inactive when its declaration statement
+becomes inactive. Because all $c statements must be in the outermost block,
+a constant will never become inactive after it is declared.
+Redeclaration of Math Symbols
+A variable may not be declared a second time while it is active, but it may
+be declared again after it becomes inactive. This provides a convenient way
+to introduce “local” variables, i.e. temporary variables for use in the frame of
+an assertion or in a proof without keeping them around forever. A previously
+declared variable may not be redeclared as a constant.
+A constant may not be redeclared. And, as mentioned above, constants
+must be declared in the outermost block.
+The reason variables may have limited scope but not constants is that an
+assertion ($a or $p statement) remains available for use in proofs through
+the end of the database. Variables in an assertion’s frame may be substituted
+with whatever is needed in a proof step that references the assertion, whereas
+constants remain fixed and may not be substituted with anything. The
+particular token used for a variable in an assertion’s frame is irrelevant when
+the assertion is referenced in a proof, and it doesn’t matter if that token is
+not available outside of the referenced assertion’s frame. Constants, however,
+must be globally fixed.
+There is no theoretical benefit for the feature allowing variables to be
+active for limited scopes rather than global. It is just a convenience that allows
+them, for example, to be locally grouped together with their corresponding
+$f variable-type declarations.
+Frames Revisited
+Now that we have covered scoping, we will look at how an arbitrary Metamath database can be converted to the simple sequence of extended frames
+described on p. 132. This is also how Metamath stores the database internally
+when it reads in the database source. The method is simple. First, we collect
+all constant and variable ($c and $v) declarations in the database, ignoring
+duplicate declarations of the same variable in different scopes. We then put
+our collected $c and $v declarations at the beginning of the database, so that
+their scope is the entire database. Next, for each assertion in the database,
+we determine its frame and extended frame. The extended frame is simply
+the $f, $e, and $d statements that are active. The frame is the extended
+frame with all optional hypotheses removed.
+An equivalent way of saying this is that the extended frame of an assertion
+is the collection of all $f, $e, and $d statements whose scope includes the
+assertion. The $f and $e statements occur in the order they appear (order
+is irrelevant for $d statements).
+
+4.3. THE ANATOMY OF A PROOF
+
+4.3
+
+135
+
+The Anatomy of a Proof
+
+Each provable assertion ($p statement) in a database must include a proof.
+The proof is located between the $= and $. keywords in the $p statement.
+In the basic Metamath language, a proof is a sequence of statement labels.
+This label sequence serves as a set of instructions that the Metamath program
+uses to construct a series of math symbol sequences. The construction must
+ultimately result in the math symbol sequence contained between the $p and
+$= keywords of the $p statement. Otherwise, the Metamath program will
+consider the proof incorrect, and it will notify you with an appropriate error
+message when you ask it to verify the proof.13 Each label in a proof is said
+to reference its corresponding statement.
+Associated with any assertion ($p or $a statement) is a set of hypotheses
+($f or $e statements) that are active with respect to that assertion. Some are
+mandatory and the others are optional. You should review these concepts if
+necessary.
+Each label in a proof must be either the label of a previous assertion ($a
+or $p statement) or the label of an active hypothesis ($e or $f statement)
+of the $p statement containing the proof. Hypothesis labels may reference
+both the mandatory and the optional hypotheses of the $p statement.
+The label sequence in a proof specifies a construction in reverse Polish
+notation (RPN). You may be familiar with RPN if you have used older
+Hewlett–Packard or similar hand-held calculators. In the calculator analogy,
+a hypothesis label is like a number and an assertion label is like an operation
+(more precisely, an n-ary operation when the assertion has n $e-hypotheses).
+On an RPN calculator, an operation takes one or more previous numbers
+in an input sequence, performs a calculation on them, and replaces those
+numbers and itself with the result of the calculation. For example, the input
+sequence 2, 3, + on an RPN calculator results in 5, and the input sequence
+2, 3, 5, ×, + results in 2, 15, + which results in 17.
+Understanding how RPN is processed involves the concept of a stack,
+which can be thought of as a set of temporary memory locations that hold
+intermediate results. When Metamath encounters a hypothesis label it places
+or pushes the math symbol sequence of the hypothesis onto the stack. When
+Metamath encounters an assertion label, it associates the most recent stack
+entries with the mandatory hypotheses of the assertion, in the order where
+the most recent stack entry is associated with the last mandatory hypothesis
+of the assertion. It then determines what substitutions have to be made into
+the variables of the assertion’s mandatory hypotheses to make them identical
+to the associated stack entries. It then makes those same substitutions
+into the assertion itself. Finally, Metamath removes or pops the matched
+13 To make the loading faster, the Metamath program does not automatically verify
+proofs when you read in a database unless you use the /verify qualifier. After a database
+has been read in, you may use the verify proof * command to verify proofs.
+
+136
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+hypotheses from the stack and pushes the substituted assertion onto the
+stack.
+For the purpose of matching the mandatory hypothesis to the most recent
+stack entries, whether a hypothesis is a $e or $f statement is irrelevant.
+The only important thing is that a set of substitutions14 exist that allow a
+match (and if they don’t, the proof verifier will let you know with an error
+message). The Metamath language is specified in such a way that if a set
+of substitutions exists, it will be unique. Specifically, the requirement that
+each variable have a type specified for it with a $f statement ensures the
+uniqueness.
+We will illustrate this with an example. Consider the following Metamath
+source file:
+$c ( ) -> wff $.
+$v p q r s $.
+wp $f wff p $.
+wq $f wff q $.
+wr $f wff r $.
+ws $f wff s $.
+w2 $a wff ( p -> q ) $.
+wnew $p wff ( s -> ( r -> p ) ) $= ws wr wp w2 w2 $.
+This Metamath source example shows the definition and “proof” (i.e., construction) of a well-formed formula (wff) in propositional calculus. (You
+may wish to type this example into a file to experiment with the Metamath
+program.) The first two statements declare (introduce the names of) four
+constants and four variables. The next four statements specify the variable
+types, namely that each variable is assumed to be a wff. Statement w2
+defines (postulates) a way to produce a new wff, ( p -> q ), from two given
+wffs p and q. The mandatory hypotheses of w2 are wp and wq. Statement
+wnew claims that ( s -> ( r -> p ) ) is a wff given three wffs s, r, and
+p. More precisely, wnew claims that the sequence of ten symbols wff ( s
+-> ( r -> p ) ) is provable from previous assertions and the hypotheses
+of wnew. Metamath does not know or care what a wff is, and as far as it is
+concerned the typecode wff is just an arbitrary constant symbol in a math
+symbol sequence. The mandatory hypotheses of wnew are wp, wr, and ws; wq
+is an optional hypothesis. In our particular proof, the optional hypothesis is
+not referenced, but in general, any combination of active (i.e. optional and
+mandatory) hypotheses could be referenced. The proof of statement wnew
+is the sequence of five labels starting with ws (step 1) and ending with w2
+(step 5).
+When Metamath verifies the proof, it scans the proof from left to right.
+We will examine what happens at each step of the proof. The stack starts
+14 In the Metamath spec (Section 4.1), we use the singular term “substitution” to refer
+to the set of substitutions we talk about here.
+
+4.3. THE ANATOMY OF A PROOF
+
+137
+
+off empty. At step 1, Metamath looks up label ws and determines that it is a
+hypothesis, so it pushes the symbol sequence of statement ws onto the stack:
+Stack location
+1
+
+Contents
+wff s
+
+Metamath sees that the labels wr and wp in steps 2 and 3 are also
+hypotheses, so it pushes them onto the stack. After step 3, the stack looks
+like this:
+Stack location
+3
+2
+1
+
+Contents
+wff p
+wff r
+wff s
+
+At step 4, Metamath sees that label w2 is an assertion, so it must do some
+processing. First, it associates the mandatory hypotheses of w2, which are
+wp and wq, with stack locations 2 and 3, in that order. Metamath determines
+that the only possible way to make hypothesis wp match (become identical
+to) stack location 2 and wq match stack location 3 is to substitute variable
+p with r and q with p. Metamath makes these substitutions into w2 and
+obtains the symbol sequence wff ( r -> p ). It removes the hypotheses
+from stack locations 2 and 3, then places the result into stack location 2:
+Stack location
+2
+1
+
+Contents
+wff ( r -> p )
+wff s
+
+At step 5, Metamath sees that label w2 is an assertion, so it must again
+do some processing. First, it matches the mandatory hypotheses of w2, which
+are wp and wq, to stack locations 1 and 2. Metamath determines that the
+only possible way to make the hypotheses match is to substitute variable p
+with s and q with ( r -> p ). Metamath makes these substitutions into
+w2 and obtains the symbol sequence wff ( s -> ( r -> p ) ). It removes
+stack locations 1 and 2, then places the result into stack location 1:
+Stack location
+1
+
+Contents
+wff ( s -> ( r -> p ) )
+
+After Metamath finishes processing the proof, it checks to see that the
+stack contains exactly one element and that this element is the same as the
+math symbol sequence in the $p statement. This is the case for our proof of
+wnew, so we have proved wnew successfully. If the result differs, Metamath
+will notify you with an error message. An error message will also result if
+the stack contains more than one entry at the end of the proof, or if the
+stack did not contain enough entries at any point in the proof to match all
+
+138
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+of the mandatory hypotheses of an assertion. Finally, Metamath will notify
+you with an error message if no substitution is possible that will make a
+referenced assertion’s hypothesis match the stack entries. You may want to
+experiment with the different kinds of errors that Metamath will detect by
+making some small changes in the proof of our example.
+Metamath’s proof notation was designed primarily to express proofs in a
+relatively compact manner, not for readability by humans. Metamath can
+display proofs in a number of different ways with the show proof command.
+The /lemmon qualifier displays it in a format that is easier to read when the
+proofs are short, and you saw examples of its use in Chapter 2. For longer
+proofs, it is useful to see the tree structure of the proof. A tree structure is
+displayed when the /lemmon qualifier is omitted. You will probably find this
+display more convenient as you get used to it. The tree display of the proof
+in our example looks like this:
+1
+2
+3
+4
+5
+
+wp=ws
+$f wff s
+wp=wr
+$f wff r
+wq=wp
+$f wff p
+wq=w2
+$a wff ( r -> p )
+wnew=w2 $a wff ( s -> ( r -> p ) )
+
+The number to the left of each line is the step number. Following it is a
+hypothesis association, consisting of two labels separated by =. To the
+left of the = (except in the last step) is the label of a hypothesis of an
+assertion referenced later in the proof; here, steps 1 and 4 are the hypothesis
+associations for the assertion w2 that is referenced in step 5. A hypothesis
+association is indented one level more than the assertion that uses it, so it is
+easy to find the corresponding assertion by moving directly down until the
+indentation level decreases to one less than where you started from. To the
+right of each = is the proof step label for that proof step. The statement
+keyword of the proof step label is listed next, followed by the content of the
+top of the stack (the most recent stack entry) as it exists after that proof
+step is processed. With a little practice, you should have no trouble reading
+proofs displayed in this format.
+Metamath proofs include the syntax construction of a formula. In standard mathematics, this kind of construction is not considered a proper part
+of the proof at all, and it certainly becomes rather boring after a while.
+Therefore, by default the show proof command does not show the syntax
+construction. Historically show proof command did show the syntax construction, and you needed to add the /essential option to hide, them, but
+today /essential is the default and you need to use /all to see the syntax
+constructions.
+When verifying a proof, Metamath will check that no mandatory $d
+statement of an assertion referenced in a proof is violated when substitutions
+are made to the variables in the assertion. For details see Section 4.1.4 or
+4.2.4.
+
+4.4. EXTENSIONS TO THE METAMATH LANGUAGE
+
+4.3.1
+
+139
+
+The Concept of Unification
+
+During the course of verifying a proof, when Metamath encounters an assertion label, it associates the mandatory hypotheses of the assertion with the
+top entries of the RPN stack. Metamath then determines what substitutions
+it must make to the variables in the assertion’s mandatory hypotheses in
+order for these hypotheses to become identical to their corresponding stack
+entries. This process is called unification. (We also informally use the term
+“unification” to refer to a set of substitutions that results from the process,
+as in “two unifications are possible.”) After the substitutions are made, the
+hypotheses are said to be unified.
+If no such substitutions are possible, Metamath will consider the proof
+incorrect and notify you with an error message.
+The general algorithm for unification described in the literature is somewhat complex. However, in the case of Metamath it is intentionally trivial.
+Mandatory hypotheses must be pushed on the proof stack in the order in
+which they appear. In addition, each variable must have its type specified
+with a $f hypothesis before it is used and that each $f hypothesis have the
+restricted syntax of a typecode (a constant) followed by a variable. The typecode in the $f hypothesis must match the first symbol of the corresponding
+RPN stack entry (which will also be a constant), so the only possible match
+for the variable in the $f hypothesis is the sequence of symbols in the stack
+entry after the initial constant.
+In the Proof Assistant, a more general unification algorithm is used.
+While a proof is being developed, sometimes not enough information is
+available to determine a unique unification. In this case Metamath will ask
+you to pick the correct one.
+
+4.4
+
+Extensions to the Metamath Language
+
+4.4.1
+
+Comments in the Metamath Language
+
+The commenting feature allows you to annotate the contents of a database.
+Just as with most computer languages, comments are ignored for the purpose
+of interpreting the contents of the database. Comments effectively act as
+additional white space between tokens when a database is parsed.
+A comment may be placed at the beginning, end, or between any two
+tokens in a source file.
+Comments have the following syntax:
+$( text $)
+Here, text is a string, possibly empty, of any characters in Metamath’s
+character set (p. 112), except that the character strings $( and $) may not
+
+140
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+appear in text. Thus nested comments are not permitted:15 Metamath will
+complain if you give it
+$( This is a $( nested $) comment. $)
+To compensate for this non-nesting behavior, I often change all $’s to @’s in
+sections of Metamath code I wish to comment out.
+The Metamath program supports a number of markup mechanisms and
+conventions to generate good-looking results in LATEX and html, as discussed
+below. These markup features have to do only with how the comments are
+typeset, and have no effect on how Metamath verifies the proofs in the
+database. The improper use of them may result in incorrectly typeset output,
+but no Metamath error messages will result during the read and verify
+proof commands. (However, the write theorem_list command will check
+for markup errors as a side-effect of its html generation.) Section 5.7 has
+instructions for creating LATEX output, and section 5.8 has instructions for
+creating html output.
+Headings
+If the $( is immediately followed by a new line starting with a heading
+marker, it is a header. This can start with:
+#### - major part header
+#*#* - section header
+=-=- - subsection header
+-.-. - subsubsection header
+The line following the marker line will be used for the table of contents entry, after trimming spaces. The next line should be another (closing) matching
+marker line. Any text after that but before the closing $, such as an extended
+description of the section, will be included on the mmtheoremsNNN.html page.
+For more information, run help write theorem_list.
+Math mode
+Inside of comments, a string of tokens enclosed in grave accents (‘) will be
+converted to standard mathematical symbols during HTML or LATEX output
+typesetting, according to the information in the special $t comment in the
+database (see section 4.4.2 for information about the typesetting comment,
+and Appendix A to see examples of its results).
+15 Computer languages have differing standards for nested comments, and rather than
+picking one it was felt simplest not to allow them at all, at least in the current version
+(0.177) of Metamath.
+
+4.4. EXTENSIONS TO THE METAMATH LANGUAGE
+
+141
+
+The first grave accent ‘ causes the output processor to enter math mode
+and the second one exits it. In this mode, the characters following the ‘
+are interpreted as a sequence of math symbol tokens separated by white
+space. The tokens are looked up in the $t comment and if found, they will
+be replaced by the standard mathematical symbols that they correspond to
+before being placed in the typeset output file. If not found, the symbol will
+be output as is and a warning will be issued. The tokens do not have to
+be active in the database, although a warning will be issued if they are not
+declared with $c or $v statements.
+Two consecutive grave accents ‘‘ are treated as a single actual grave
+accent (both inside and outside of math mode) and will not cause the output
+processor to enter or exit math mode.
+Here is an example of its use:
+$( Pierce’s axiom, ‘ ( ( ph -> ps ) -> ph ) -> ph ‘ ,
+is not very intuitive. $)
+becomes
+$( Pierce’s axiom, ((ϕ → ψ) → ϕ) → ϕ, is not very intuitive. $)
+Note that the math symbol tokens must be surrounded by white space.
+White space should also surround the ‘ delimiters.
+The math mode feature also gives you a quick and easy way to generate
+text containing mathematical symbols, independently of the intended purpose of Metamath. To do this, simply create your text with grave accents
+surrounding your formulas, after making sure that your math symbols are
+mapped to LATEX symbols as described in Appendix A. It is easier if you
+start with a database with predefined symbols such as set.mm. Use your
+grave-quoted math string to replace an existing comment, then typeset the
+statement corresponding to that comment following the instructions from
+the help tex command in the Metamath program. You will then probably
+want to edit the resulting file with a text editor to fine tune it to your exact
+needs.
+Label Mode
+Outside of math mode, a tilde ~ indicates to Metamath’s output processor
+that the token that follows (i.e. the characters up to the next white space)
+represents a statement label or URL. This formatting mode is called label
+mode. If a literal tilde is desired (outside of math mode) instead of label
+mode, use two tildes in a row to represent it.
+When generating a LATEX output file, the following token will be formatted
+in typewriter font, and the tilde removed, to make it stand out from the
+rest of the text. This formatting will be applied to all characters after the
+tilde up to the first white space. Whether or not the token is an actual
+
+142
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+statement label is not checked, and the token does not have to have the
+correct syntax for a label; no error messages will be produced. The only
+effect of the label mode on the output is that typewriter font will be used
+for the tokens that are placed in the LATEX output file.
+When generating html, the tokens after the tilde must be a URL (either
+http: or https:) or a valid label. Error messages will be issued during that
+output if they aren’t. A hyperlink will be generated to that URL or label.
+Link to bibliographical reference
+Bibliographical references are handled specially when generating html if
+formatted specially. Text in the form [author ] is considered a link to a
+bibliographical reference. See help html and help write bibliography
+in the Metamath program for more information. See also Sections 4.4.2 and
+5.8.2.
+The [author ] notation will also create an entry in the bibliography crossreference file generated by write bibliography (Section 5.8.2) for HTML.
+For this to work properly, the surrounding comment must be formatted as
+follows:
+keyword label noise-word [author ] p. number
+for example
+Theorem 5.2 of [Monk] p. 223
+The keyword is not case sensitive and must be one of the following:
+theorem lemma definition compare proposition corollary
+axiom rule remark exercise problem notation example
+property figure postulate equation scheme chapter
+The optional label may consist of more than one (non-keyword and non-noiseword) word. The optional noise-word is one of:
+of in from on
+and is ignored when the cross-reference file is created. The write bibliography command will perform error checking to verify the above format.
+Parentheticals
+The end of a comment may include one or more parenthicals, that is, statements enclosed in parentheses. The Metamath program looks for certain
+parentheticals and can issue warnings based on them. They are:
+(Contributed by NAME , DATE .) - document the original contributor’s name and the date it was created.
+
+4.4. EXTENSIONS TO THE METAMATH LANGUAGE
+
+143
+
+(Revised by NAME , DATE .) - document the contributor’s name
+and creation date that resulted in significant revision (not just an
+automated minimization or shortening).
+(Proof shortened by NAME , DATE .) - document the contributor’s name and date that developed a significant shortening of the proof
+(not just an automated minimization).
+(Proof modification is discouraged.)
+should normally not be modified.
+
+- Note that this proof
+
+(New usage is discouraged.) - Note that this assertion should
+normally not be used.
+The DATE must be in form YYYY-MMM-DD, where MMM is the
+English abbreviation of that month.
+Other markup
+There are other markup notations for generating good-looking results beyond
+math mode and label mode:
+_ (underscore) - Italicize text starting from space_non-space (i.e. _
+with a space before it and a non-space character after it) until the next
+non-space_space. Normal punctuation (e.g. a trailing comma or period)
+is ignored when determining space.
+_ (underscore) - non-space_non-space-string, where non-space-string is
+a string of non-space characters, will make non-space-string become a
+subscript.
+<HTML>...</HTML> - do not convert “<” and “>” in the enclosed text
+when generating HTML, otherwise process markup normally. This
+allows direct insertion of html commands.
+“&ref;” - insert an HTML character reference. This is how to insert
+arbitrary Unicode characters (such as accented characters). Currently
+only directly supported when generating HTML.
+It is recommended that spaces surround any ~ and ‘ tokens in the
+comment and that a space follow the label after a ~ token. This will make
+global substitutions to change labels and symbol names much easier and also
+eliminate any future chance of ambiguity. Spaces around these tokens are
+automatically removed in the final output to conform with normal rules of
+punctuation; for example, a space between a trailing ‘ and a left parenthesis
+will be removed.
+A good way to become familiar with the markup notation is to look at
+the extensive examples in the set.mm database.
+
+144
+
+4.4.2
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+The Typesetting Comment ($t)
+
+The typesetting comment $t in the input database file provides the information necessary to produce good-looking results. It provides LATEX and html
+definitions for math symbols, as well supporting as some customization of
+the generated web page. If you add a new token to a database, you should
+also update the $t comment information if you want to eventually create
+output in LATEX or HTML. See the set.mm database file for an extensive
+example of a $t comment illustrating many of the features described below.
+Programs that do not need to generate good-looking presentation results,
+such as programs that only verify Metamath databases, can completely ignore
+typesetting comments and just treat them as normal comments. Even the
+Metamath program only consults the $t comment information when it needs
+to generate typeset output in LATEX or HTML (e.g., when you open a LATEX
+output file with the open tex command).
+We will first discuss the syntax of typesetting comments, and then briefly
+discuss how this can be used within the Metamath program.
+Typesetting Comment Syntax Overview
+The typesetting comment is identified by the token $t in the comment, and
+the typesetting comment ends at the matching $):
+$( $t |
+·{z
+··
+} $)
+Typesetting definitions go here
+There must be one or more white space characters, and only white space
+characters, between the $( that starts the comment and the $t symbol, and
+the $t must be followed by one or more white space characters (see section
+4.1.1 for the definition of white space characters). The typesetting comment
+continues until the comment end token $) (which must be preceded by one
+or more white space characters).
+In version 0.177 of the Metamath program, there may be only one $t
+comment in a database. This restriction may be lifted in the future to allow
+many $t comments in a database.
+Between the $t symbol (and its following white space) and the comment
+end token $) (and its preceding white space) is a sequence of one or more
+typesetting definitions, where each definition has the form definition-type
+arg arg ... ;. Each of the zero or more arg values can be either a typesetting
+data or a keyword (what keywords are allowed, and where, depends on the
+specific definition-type). The definition-type, and each argument arg, are
+separated by one or more white space characters. Every definition ends in
+an unquoted semicolon; white space is not required before the terminating
+semicolon of a definition. Each definition should start on a new line.16
+16 This restriction of the current version of Metamath (0.177) may be removed in a
+future version, but you should do it anyway for readability.
+
+4.4. EXTENSIONS TO THE METAMATH LANGUAGE
+
+145
+
+For example, this typesetting definition:
+latexdef "C_" as "\subseteq";
+defines the token C_ as the LATEX symbol ⊆ (which means “subset”).
+Typesetting data is a sequence of one or more quoted strings (if there
+is more than one, they are connected by +). Often a single quoted string is
+used to provide data for a definition, using either double (") or single (’)
+quotation marks. However, a quoted string (enclosed in quotation marks)
+may not include line breaks. A quoted string may include a quotation mark
+that matches the enclosing quotes by repeating the quotation mark twice.
+Here are some examples:
+Example Meaning
+"a""b"
+a"b
+’c’’d’
+c’d
+"e’’f"
+e’’f
+’g""h’
+g""h
+Finally, a long quoted string may be broken up into multiple quoted
+strings (considered, as a whole, a single quoted string) and joined with +.
+You can even use multiple lines as long as a ’+’ is at the end of every line
+except the last one. The + should be preceded and followed by at least one
+white space character. Thus, for example,
+"ab" + "cd" +
+’ef’
+is the same as
+"abcdef"
+c-style comments /*. . . */ are also supported.
+In practice, whenever you add a new math token you will often want to
+add typesetting definitions using latexdef, htmldef, and althtmldef, as
+described below. That way, they will all be up to date. Of course, whether
+or not you want to use all three definitions will depend on how the database
+is intended to be used.
+Below we discuss the different possible definition-kind options. We will
+show data surrounded by double quotes (in practice they can also use single
+quotes and/or be a sequence joined by +s). We will use specific names for
+the data to make clear what the data is used for, such as math-token (for
+a Metamath math token, latex-string (for string to be placed in a LATEX
+stream), html-code (for html code), and filename (for a filename).
+Typesetting Comment - LATEX
+The syntax for a LATEX definition is:
+latexdef "math-token" as "latex-string";
+
+146
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+The token-string and latex-string are the data (character strings) for the
+token and the LATEX definition of the token, respectively,
+These LATEX definitions are used by the Metamath program when it is
+asked to product LATEXoutput using the write tex command.
+Typesetting Comment - html
+The key kinds of HTML definitions have the following syntax:
+htmldef "math-token" as "html-code";
+...
+althtmldef "math-token" as "html-code";
+...
+Note that in HTML there are two possible definitions for math tokens.
+This feature is useful when an alternate representation of symbols is desired,
+for example one that uses Unicode entities and another uses gif images.
+There are many other typesetting definitions that can control HTML.
+These include:
+htmldef "math-token" as "html-code";
+htmltitle "html-code";
+htmlhome "html-code";
+htmlvarcolor "html-code";
+htmlbibliography "filename";
+The htmltitle is the html code for a common title, such as “Metamath
+Proof Explorer.” The htmlhome is code for a link back to the home page.
+The htmlvarcolor is code for a color key that appears at the bottom of
+each proof. The file specified by filename is an html file that is assumed
+to have a <A NAME=. . . > tag for each bibiographic reference in the database
+comments. For example, if [Monk] occurs in the comment for a theorem,
+then <A NAME=’Monk’> must be present in the file; if not, a warning message
+is given.
+Associated with althtmldef are the statements
+htmldir "directoryname";
+althtmldir "directoryname";
+giving the directories of the gif and Unicode versions respectively; their
+purpose is to provide cross-linking between the two versions in the generated
+web pages.
+When two different types of pages need to be produced from a single
+database, such as the Hilbert Space Explorer that extends the Metamath
+Proof Explorer, “extended” variables may be declared in the $t comment:
+exthtmltitle "html-code";
+exthtmlhome "html-code";
+exthtmlbibliography "filename";
+When these are declared, you also must declare
+
+4.4. EXTENSIONS TO THE METAMATH LANGUAGE
+
+147
+
+exthtmllabel "label ";
+that identifies the database statement where the “extended” section of
+the database starts (in our example, where the Hilbert Space Explorer
+starts). During the generation of web pages for that starting statement
+and the statements after it, the html code assigned to exthtmltitle and
+exthtmlhome is used instead of that assigned to htmltitle and htmlhome,
+respectively.
+
+4.4.3
+
+Additional Information Comment ($j)
+
+The additional information comment, aka the $j comment, provides a
+way to add additional structured information that can be optionally parsed
+by systems.
+The additional information comment is parsed the same way as the typesetting comment ($t) (see section 4.4.2). That is, the additional information
+comment begins with the token $j within a comment, and continues until
+the comment close $). Within an additional information comment is a
+sequence of one or more commands of the form command arg arg ... ;
+where each of the zero or more arg values can be either a quoted string or
+a keyword. Note that every command ends in an unquoted semicolon. If a
+verifier is parsing an additional information comment, but doesn’t recognize
+a particular command, it must skip the command by finding the end of the
+command (an unquoted semicolon).
+A database may have 0 or more additional information comments. Note,
+however, that a verifier may ignore these comments entirely or only process
+certain commands in an additional information comment. The mmj2 verifier
+supports many commands in additional information comments. We encourage
+systems that process additional information comments to coordinate so that
+they will use the same command for the same effect.
+Examples of additional information comments with various commands
+(from the set.mm database) are:
+• Define the syntax and logical typecodes, and declare that our grammar
+is unambiguous (verifiable using the KLR parser, with compositing
+depth 5).
+$( $j
+syntax ’wff’;
+syntax ’|-’ as ’wff’;
+unambiguous ’klr 5’;
+$)
+• Register ¬ and → as primitive expressions (lacking definitions).
+$( $j primitive ’wn’ ’wi’; $)
+
+148
+
+CHAPTER 4. THE METAMATH LANGUAGE
+• There is a special justification for df-bi.
+$( $j justification ’bijust’ for ’df-bi’; $)
+• Register ↔ as an equality for its type (wff).
+$( $j
+equality ’wb’ from ’biid’ ’bicomi’ ’bitri’;
+definition ’dfbi1’ for ’wb’;
+$)
+• Theorem notbii is the congruence law for negation.
+$( $j congruence ’notbii’; $)
+• Add setvar as a typecode.
+$( $j syntax ’setvar’; $)
+• Register = as an equality for its type (class).
+$( $j equality ’wceq’ from ’eqid’ ’eqcomi’ ’eqtri’; $)
+
+4.4.4
+
+Including Other Files in a Metamath Source File
+
+The keywords $[ and $] specify a file to be included at that point in a
+Metamath source file. The syntax for including a file is as follows:
+$[ file-name $]
+The file-name should be a single token with the same syntax as a math
+symbol (i.e., all 93 non-whitespace printable characters other than $ are
+allowed, subject to the file-naming limitations of your operating system).
+Comments may appear between the $[ and $] keywords. Included files may
+include other files, which may in turn include other files, and so on.
+For example, suppose you want to use the set theory database as the
+starting point for your own theory. The first line in your file could be
+$[ set.mm $]
+All of the information (axioms, theorems, etc.) in set.mm and any files that
+it includes will become available for you to reference in your file. This can
+help make your work more modular. A drawback to including files is that if
+you change the name of a symbol or the label of a statement, you must also
+remember to update any references in any file that includes it.
+
+4.4. EXTENSIONS TO THE METAMATH LANGUAGE
+
+149
+
+The naming conventions for included files are the same as those of your
+operating system.17 For compatibility among operating systems, you should
+keep the file names as simple as possible. A good convention to use is file.mm
+where file is eight characters or less, in lower case.
+There is no limit to the nesting depth of included files. One thing that
+you should be aware of is that if two included files themselves include a
+common third file, only the first reference to this common file will be read
+in. This allows you to include two or more files that build on a common
+starting file without having to worry about label and symbol conflicts that
+would occur if the common file were read in more than once. (In fact, if a file
+includes itself, the self-reference will be ignored, although of course it would
+not make any sense to do that.) This feature also means, however, that if
+you try to include a common file in several inner blocks, the result might not
+be what you expect, since only the first reference will be replaced with the
+included file (unlike the include statement in most other computer languages).
+Thus you would normally include common files only in the outermost block.
+
+4.4.5
+
+Compressed Proof Format
+
+The proof notation presented in Section 4.3 is called a normal proof and
+in principle is sufficient to express any proof. However, proofs often contain
+steps and subproofs that are identical. This is particularly true in typical
+Metamath applications, because Metamath requires that the math symbol
+sequence (usually containing a formula) at each step be separately constructed,
+that is, built up piece by piece. As a result, a lot of repetition often results.
+The compressed proof format allows Metamath to take advantage of this
+redundancy to shorten proofs.
+The specification for the compressed proof format is given in Appendix B.
+Normally you need not concern yourself with the details of the compressed
+proof format, since the Metamath program will allow you to convert from the
+normal format to the compressed format with ease, and will also automatically
+convert from the compressed format when proofs are displayed. The overall
+structure of the compressed format is as follows:
+$= ( label-list ) compressed-proof $.
+The first ( serves as a flag to Metamath that a compressed proof follows.
+The label-list includes all statements referred to by the proof except the
+mandatory hypotheses. The compressed-proof is a compact encoding of the
+17 On the Macintosh, prior to Mac OS X, a colon is used to separate disk and folder
+names from your file name. For example, volume:file-name refers to the root directory,
+volume:folder-name:file-name refers to a folder in root, and volume:folder-name:. . . :filename refers to a deeper folder. A simple file-name refers to a file in the folder from which
+you launch the Metamath application. Under Mac OS X and later, the Metamath program
+is run under the Terminal application, which conforms to Unix naming conventions.
+
+150
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+proof, using upper-case letters, and can be thought of as a large integer in
+base 26. White space inside a compressed-proof is optional and is ignored.
+It is important to note that the order of the mandatory hypotheses of
+the statement being proved must not be changed if the compressed proof
+format is used, otherwise the proof will become incorrect. The reason for
+this is that the mandatory hypotheses are not mentioned explicitly in the
+compressed proof in order to make the compression more efficient. If you
+wish to change the order of mandatory hypotheses, you must first convert
+the proof back to normal format using the save proof statement /normal
+command. Later, you can go back to compressed format with save proof
+statement /compressed.
+During error checking with the verify proof command, an error found
+in a compressed proof may point to a character in compressed-proof, which
+may not be very meaningful to you. In this case, try to save proof /normal
+first, then do the verify proof again. In general, it is best to make sure a
+proof is correct before saving it in compressed format, because severe errors
+are less likely to be recoverable than in normal format.
+
+4.4.6
+
+Specifying Unknown Proofs or Subproofs
+
+In a proof under development, any step or subproof that is not yet known
+may be represented with a single ?. For the purposes of parsing the proof, the
+? will push a single entry onto the RPN stack just as if it were a hypothesis.
+While developing a proof with the Proof Assistant, a partially developed
+proof may be saved with the save new_proof command, and ?’s will be
+placed at the appropriate places.
+All $p statements must have proofs, even if they are entirely unknown.
+Before creating a proof with the Proof Assistant, you should specify a
+completely unknown proof as follows:
+label $p statement $= ? $.
+The verify proof command will check the known portions of a partial
+proof for errors, but will warn you that the statement has not been proved.
+Note that partially developed proofs may be saved in compressed format
+if desired. In this case, you will see one or more ?’s in the compressed-proof
+part.
+
+4.5
+
+Axioms vs. Definitions
+
+The basic Metamath language and program make no distinction between
+axioms and definitions. The $a statement is used for both. At first, this may
+seem puzzling. In the minds of many mathematicians, the distinction is clear,
+even obvious, and hardly worth discussing. A definition is considered to be
+merely an abbreviation that can be replaced by the expression for which it
+
+4.5. AXIOMS VS. DEFINITIONS
+
+151
+
+stands; although unless one actually does this, to be precise then one should
+say that a theorem is a consequence of the axioms and the definitions that
+are used in the formulation of the theorem [4, p. 20].
+
+4.5.1
+
+What is a Definition?
+
+What is a definition? In its simplest form, a definition introduces a new symbol and provides an unambiguous rule to transform an expression containing
+the new symbol to one without it. The concept of a “proper definition”
+(as opposed to a creative definition) that is usually agreed upon is (1) the
+definition should not strengthen the language and (2) any symbols introduced by the definition should be eliminable from the language [49]. In other
+words, they are mere typographical conveniences that do not belong to the
+system and are theoretically superfluous. This may seem obvious, but in
+fact the nature of definitions can be subtle, sometimes requiring difficult
+metatheorems to establish that they are not creative.
+A more conservative stance was taken by logician S. Leśniewski.
+Leśniewski regards definitions as theses of the system. In this
+respect they do not differ either from the axioms or from theorems,
+i.e. from the theses added to the system on the basis of the rule
+of substitution or the rule of detachment [modus ponens]. Once
+definitions have been accepted as theses of the system, it becomes
+necessary to consider them as true propositions in the same sense
+in which axioms are true [37].
+Let us look at some simple examples of definitions in propositional calculus.
+Consider the definition of logical or (disjunction): “P ∨ Q denotes ¬P → Q
+(not P implies Q).” It is very easy to recognize a statement making use of this
+definition, because it introduces the new symbol ∨ that did not previously
+exist in the language. It is easy to see that no new theorems of the original
+language will result from this definition.
+Next, consider a definition that eliminates parentheses: “P → Q → R
+denotes P → (Q → R).” This is more subtle, because no new symbols are
+introduced. The reason this definition is considered proper is that no new
+symbol sequences that are valid wffs (well-formed formulas) in the original
+language will result from the definition, since “P → Q → R” is not a wff in
+the original language. Here, we implicitly make use of the fact that there is
+a decision procedure that allows us to determine whether or not a symbol
+sequence is a wff, and this fact allows us to use symbol sequences that are
+not wffs to represent other things (such as wffs) by means of the definition.
+However, to justify the definition as not being creative we need to prove that
+“P → Q → R” is in fact not a wff in the original language, and this is more
+difficult than in the case where we simply introduce a new symbol.
+What constitutes a definition versus an axiom is sometimes arbitrary in
+mathematical literature. For example, the connectives ∨ (or), ∧ (and), and
+
+152
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+↔ (equivalent to) in propositional calculus are usually considered defined
+symbols that can be used as abbreviations for expressions containing the
+“primitive” connectives → and ¬. This is the way we treat them in the
+standard logic and set theory database set.mm. However, the first three
+connectives can also be considered “primitive,” and axiom systems have been
+devised that treat all of them as such. For example, [19, p. 35] presents one
+with 15 axioms, some of which in fact coincide with what we have chosen
+to call definitions in set.mm. In certain subsets of classical propositional
+calculus, such as the intuitionist fragment, it can be shown that one cannot
+make do with just → and ¬ but must treat additional connectives as primitive
+in order for the system to make sense.18
+
+4.5.2
+
+The Approach to Definitions in set.mm
+
+In set theory, recursive definitions define a newly introduced symbol in terms
+of itself. The justification of recursive definitions, using several “recursion
+theorems,” is usually one of the first sophisticated proofs a student encounters
+when learning set theory, and there is a significant amount of implicit
+metalogic behind a recursive definition even though the definition itself is
+typically simple to state.
+Metamath itself has no built-in technical limitation that prevents multiplepart recursive definitions in the traditional textbook style. However, because
+the recursive definition requires advanced metalogic to justify, eliminating a
+recursive definition is very difficult and often not even shown in textbooks.
+Direct definitions instead of recursive definitions
+It is, however, possible to substitute one kind of complexity for another.
+We can eliminate the need for metalogical justification by defining the
+operation directly with an explicit (but complicated) expression, then deriving
+the recursive definition directly as a theorem, using a recursion theorem
+“in reverse.” The elimination of a direct definition is a matter of simple
+mechanical substitution. We do this in set.mm, as follows.
+In set.mm our goal was to introduce almost all definitions in the form of
+two expressions connected by either ↔ or =, where the thing being defined
+does not appear on the right hand side. Quine calls this form “a genuine
+or direct definition” [55, p. 174], which makes the definitions very easy to
+eliminate and the metalogic needed to justify them as simple as possible.
+Put another way, we had a goal of being able to eliminate all definitions
+with direct mechanical substitution and to verify easily the soundness of the
+definitions.
+18 Two nice systems that make the transition from intuitionistic and other weak fragments
+to classical logic just by adding axioms are given in [57].
+
+4.5. AXIOMS VS. DEFINITIONS
+
+153
+
+Example of direct definitions
+We achieved this goal in almost all cases in set.mm. Sometimes this makes the
+definitions more complex and less intuitive. For example, the traditional way
+to define addition of natural numbers is to define an operation called successor
+(which means “plus one” and is denoted by “suc”), then define addition
+recursively with the two definitions n + 0 = n and m + suc n = suc(m + n).
+Although this definition seems simple and obvious, the method to eliminate
+the definition is not obvious: in the second part of the definition, addition
+is defined in terms of itself. By eliminating the definition, we don’t mean
+repeatedly applying it to specific m and n but rather showing the explicit,
+closed-form set-theoretical expression that m + n represents, that will work
+for any m and n and that does not have a + sign on its right-hand side. For
+a recursive definition like this not to be circular (creative), there are some
+hidden, underlying assumptions we must make, for example that the natural
+numbers have a certain kind of order.
+In set.mm we chose to start with the direct (though complex and nonintuitive) definition then derive from it the standard recursive definition. For
+example, the closed-form definition used in set.mm for the addition operation
+on ordinals (of which natural numbers are a subset) is
+df-oadd $a ` +o = ( x ∈ On , y ∈ On 7→ ( rec ( ( z ∈ V 7→ suc z ) , x ) ‘ y ) )
+which depends on rec.
+Recursion operators
+The above definition of df-oadd depends on the definition of rec, a “recursion
+operator” with the definition df-rdg:
+S
+df-rdg $a ` rec ( F , I ) = recs
+S ( ( g ∈ V 7→ if ( g = ∅ , I , if ( Lim dom g ,
+ran g , ( F ‘ ( g ‘ dom g ) ) ) ) ) )
+which can be further broken down with definitions shown in Section 3.4.3.
+This definition of rec defines a recursive definition generator on On (the
+class of ordinal numbers) with characteristic function F and initial value I.
+This operation allows us to define, with compact direct definitions, functions
+that are usually defined in textbooks with recursive definitions. The price
+paid with our approach is the complexity of our rec operation (especially
+when df-recs that it is built on is also eliminated). But once we get past
+this hurdle, definitions that would otherwise be recursive become relatively
+simple, as in for example oav, from which we prove the recursive textbook
+definition as theorems oa0, oasuc, and oalim (with the help of theorems
+rdg0, rdgsuc, and rdglim2a). We can also restrict the rec operation to
+define otherwise recursive functions on the natural numbers ω; see fr0g and
+frsuc. Our rec operation apparently does not appear in published literature,
+although closely related is Definition 25.2 of [Quine] p. 177, which he uses
+to “turn...a recursion into a genuine or direct definition” (p. 174). Note that
+the if operations (see df-if) select cases based on whether the domain of g
+
+154
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+is zero, a successor, or a limit ordinal.
+An important use of this definition rec is in the recursive sequence
+generator df-seq on the natural numbers (as a subset of the complex infinite
+sequences such as the factorial function df-fac and integer powers df-exp).
+The definition of rec depends on recs. New direct usage of the more
+powerful (and more primitive) recs construct is discouraged, but it is available
+when needed. This defines a function recs(F ) on On, the class of ordinal
+numbers, by transfinite recursion given a rule F which sets the next value
+given all values so far. Unlike df-rdg which restricts the update rule to use
+only the previous value, this version allows the update rule to use all previous
+values, which is why it is described as “strong,” although it is actually
+more primitive. See recsfnon and recsval for the primary contract of this
+definition. It is defined as: S
+df-recs $a ` recs ( F ) = { f | ∃ x ∈ On ( f Fn x ∧ ∀ y ∈ x ( f ‘ y ) = ( F ‘ (
+f y)))}
+Closing comments on direct definitions
+From these direct definitions the simpler, more intuitive recursive definition
+is derived as a set of theorems. The end result is the same, but we completely
+eliminate the rather complex metalogic that justifies the recursive definition.
+Recursive definitions are often considered more efficient and intuitive than
+direct ones once the metalogic has been learned or possibly just accepted
+as correct. However, it was felt that direct definition in set.mm maximizes
+rigor by minimizing metalogic. It can be eliminated effortlessly, something
+that is difficult to do with a recursive definition.
+Again, Metamath itself has no built-in technical limitation that prevents
+multiple-part recursive definitions in the traditional textbook style. Instead,
+our goal is to eliminate all definitions with direct mechanical substitution
+and to verify easily the soundness of definitions.
+
+4.5.3
+
+Adding Constraints on Definitions
+
+The basic Metamath language and the Metamath program do not have any
+built-in constraints on definitions, since they are just $a statements.
+However, nothing prevents a verification system from verifying additional
+rules to impose further limitations on definitions. For example, the mmj2
+program supports various kinds of additional information comments (see
+section 4.4.3). One of their uses is to optionally verify additional constraints,
+including constraints to verify that definitions meet certain requirements.
+These additional checks are required by the continuous integration (CI)
+checks of the set.mm database. This approach enables us to optionally
+impose additional requirements on definitions if we wish, without necessarily
+imposing those rules on all databases or requiring all verification systems to
+implement them. In addition, this allows us to impose specialized constraints
+
+4.5. AXIOMS VS. DEFINITIONS
+
+155
+
+tailored to one database while not requiring other systems to implement
+those specialized constraints.
+We impose two constraints on the set.mm database via the mmj2 program
+that are worth discussing here: a parse check and a definition soundness
+check.
+First, we enable a parse check in mmj2 (through its SetParser command)
+that requires that all new definitions must not create an ambiguous parse
+for a KLR(5) parser. This prevents some errors such as definitions with
+imbalanced parentheses.
+Second, we run a definition soundness check specific to set.mm or databases
+similar to it. (through the definitionCheck macro). Some $a statements
+(including all ax-* statemnets) are excluded from these checks, as they will
+always fail this simple check, but they are appropriate for most definitions.
+This check imposes a set of additional rules:
+1. New definitions must be introduced using = or ↔.
+2. No $a statement introduced before this one is allowed to use the symbol
+being defined in this definition, and the definition is not allowed to use
+itself (except once, in the definiendum).
+3. Every variable in the definiens should not be distinct
+4. Every dummy variable in the definiendum are required to be distinct
+from each other and from variables in the definiendum. To determine
+this, the system will look for a ”justification” theorem in the database,
+and if it is not there, attempt to briefly prove (ϕ → ∀xϕ) for each
+dummy variable x.
+5. Every dummy variable should be a set variable, unless there is a
+justification theorem available.
+6. Every dummy variable must be bound (if the system cannot determine
+this a justification theorem must be provided).
+
+4.5.4
+
+Summary of Approach to Definitions
+
+In short, when being rigorous it turns out that definitions can be subtle,
+sometimes requiring difficult metatheorems to establish that they are not
+creative.
+Instead of building such complications into the Metamath language itself,
+the basic Metmath language and program simply treat traditional axioms and
+definitions as the same kind of $a statement. We have then built various tools
+to enable people to verify additional conditions as their creators believe is
+appropriate for those specific databases, without complicating the Metamath
+foundations.
+
+156
+
+CHAPTER 4. THE METAMATH LANGUAGE
+
+Chapter 5
+
+The Metamath Program
+This chapter provides a reference manual for the Metamath program.
+Current instructions for obtaining and installing the Metamath program
+can be found at the http://metamath.org web site. For Windows, there is
+a pre-compiled version called metamath.exe. For Unix, Linux, and Mac OS
+X (which we will refer to collectively as “Unix”), the Metamath program can
+be compiled from its source code with the command
+gcc *.c -o metamath
+using the gcc c compiler available on those systems.
+In the command syntax descriptions below, fields enclosed in square
+brackets [ ] are optional. File names may be optionally enclosed in single
+or double quotes. This is useful if the file name contains spaces or slashes
+(/), such as in Unix path names, that might be confused with Metamath
+command qualifiers.
+
+5.1
+
+Invoking Metamath
+
+Unix, Linux, and Mac OS X have a command-line interface called the
+bash shell. (In Mac OS X, select the Terminal application from Applications/Utilities.) To invoke Metamath from the bash shell prompt, assuming
+that the Metamath program is in the current directory, type
+bash$ ./metamath
+To invoke Metamath from a Windows DOS or Command Prompt, assuming that the Metamath program is in the current directory (or in a directory
+included in the Path system environment variable), type
+C:\metamath>metamath
+
+157
+
+158
+
+CHAPTER 5. THE METAMATH PROGRAM

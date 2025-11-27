@@ -1,0 +1,814 @@
+⚠ [2/55] Replayed Metamath.Spec
+warning: Metamath/Spec.lean:189:23: unused variable `c`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/Spec.lean:237:8: declaration uses 'sorry'
+warning: Metamath/Spec.lean:253:8: declaration uses 'sorry'
+warning: Metamath/Spec.lean:271:8: declaration uses 'sorry'
+⚠ [6/55] Replayed Metamath.Verify
+warning: Metamath/Verify.lean:37:8: This simp argument is unused:
+  getElem!_def
+
+Hint: Omit it from the simp argument list.
+  simp [̵g̵e̵t̵E̵l̵e̵m̵!̵_̵d̵e̵f̵,̵ ̵g̵e̵t̵E̵l̵e̵m̵_̵t̵o̵L̵i̵s̵t̵,̵[̲g̲e̲t̲E̲l̲e̲m̲_̲t̲o̲L̲i̲s̲t̲,̲ h]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/Verify.lean:428:8: This simp argument is unused:
+  Array.getBang_eq_get_nat
+
+Hint: Omit it from the simp argument list.
+  simp [A̵r̵r̵a̵y̵.̵g̵e̵t̵B̵a̵n̵g̵_̵e̵q̵_̵g̵e̵t̵_̵n̵a̵t̵,̵ ̵h_idx, bind, Except.bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/Verify.lean:462:8: This simp argument is unused:
+  Array.getBang_eq_get_nat
+
+Hint: Omit it from the simp argument list.
+  simp [A̵r̵r̵a̵y̵.̵g̵e̵t̵B̵a̵n̵g̵_̵e̵q̵_̵g̵e̵t̵_̵n̵a̵t̵,̵ ̵h_idx]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+⚠ [16/55] Replayed Metamath.ArrayListExt
+warning: Metamath/ArrayListExt.lean:284:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: Metamath/ArrayListExt.lean:530:48: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ArrayListExt.lean:586:62: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ArrayListExt.lean:612:17: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [17/55] Replayed Metamath.Bridge.Basics
+warning: Metamath/Bridge/Basics.lean:105:17: unused variable `c`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/Bridge/Basics.lean:217:6: unused variable `c`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/Bridge/Basics.lean:217:8: unused variable `v`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [19/55] Replayed Metamath.KernelExtras
+warning: Metamath/KernelExtras.lean:153:8: declaration uses 'sorry'
+warning: Metamath/KernelExtras.lean:184:16: declaration uses 'sorry'
+warning: Metamath/KernelExtras.lean:201:16: declaration uses 'sorry'
+⚠ [22/55] Replayed Metamath.ParserInvariants
+warning: Metamath/ParserInvariants.lean:57:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:83:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:134:67: unused variable `h_ne`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ParserInvariants.lean:203:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:233:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:265:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:341:3: unused variable `h_success`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ParserInvariants.lean:371:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:445:8: declaration uses 'sorry'
+⚠ [24/55] Replayed Metamath.ParserProofs
+warning: Metamath/ParserProofs.lean:142:8: This simp argument is unused:
+  h_some
+
+Hint: Omit it from the simp argument list.
+  simp [h_̵s̵o̵m̵e̵,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:142:16: This simp argument is unused:
+  h
+
+Hint: Omit it from the simp argument list.
+  simp [h_some,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:144:49: This simp argument is unused:
+  h
+
+Hint: Omit it from the simp argument list.
+  simp [DB.mkError,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:164:30: This simp argument is unused:
+  DB.mkError_frame
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵D̵B̵.̵m̵k̵E̵r̵r̵o̵r̵_̵f̵r̵a̵m̵e̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:233:28: This simp argument is unused:
+  DB.find?
+
+Hint: Omit it from the simp argument list.
+  simp [D̵B̵.̵f̵i̵n̵d̵?̵,̵ ̵hfind', hok] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:233:46: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:278:28: This simp argument is unused:
+  DB.find?
+
+Hint: Omit it from the simp argument list.
+  simp [D̵B̵.̵f̵i̵n̵d̵?̵,̵ ̵hfind', hok] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:278:46: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:325:22: This simp argument is unused:
+  ite_false
+
+Hint: Omit it from the simp argument list.
+  simp only [h_err,̵ ̵i̵t̵e̵_̵f̵a̵l̵s̵e̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:381:14: This simp argument is unused:
+  DB.insert
+
+Hint: Omit it from the simp argument list.
+  simp [DB.i̵n̵s̵e̵r̵t̵,̵ ̵D̵B̵.̵find?, DB.mkError, DB.error, hobj, h_strict] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:381:25: This simp argument is unused:
+  DB.find?
+
+Hint: Omit it from the simp argument list.
+  simp [DB.insert, DB.f̵i̵n̵d̵?̵,̵ ̵D̵B̵.̵mkError, DB.error, hobj, h_strict] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:399:30: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, h̵f̵i̵n̵d̵,̵ ̵KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:412:52: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:426:28: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, h̵f̵i̵n̵d̵,̵ ̵KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:437:32: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hf̵i̵n̵d̵,̵ ̵h̵obj, hok]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:437:39: This simp argument is unused:
+  hobj
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind, hob̵j̵,̵ ̵h̵o̵k]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:437:45: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind, hobj,̵ ̵h̵o̵k̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:447:42: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:457:42: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:467:42: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:480:28: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, h̵f̵i̵n̵d̵,̵ ̵KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:490:50: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:502:28: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, h̵f̵i̵n̵d̵,̵ ̵KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:511:50: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:529:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:633:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:662:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:696:17: This simp argument is unused:
+  ite_true
+
+Hint: Omit it from the simp argument list.
+  simp only [i̵t̵e̵_̵t̵r̵u̵e̵,̵ ̵Id.run] at h_find_a
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:802:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:889:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:936:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:986:22: This simp argument is unused:
+  Array.extract
+
+Hint: Omit it from the simp argument list.
+  simp [Array.shrink,̵ ̵A̵r̵r̵a̵y̵.̵e̵x̵t̵r̵a̵c̵t̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:993:22: This simp argument is unused:
+  Array.extract
+
+Hint: Omit it from the simp argument list.
+  simp [Array.shrink,̵ ̵A̵r̵r̵a̵y̵.̵e̵x̵t̵r̵a̵c̵t̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:1064:10: `Std.HashMap.empty` has been deprecated: Use `Std.HashMap.emptyWithCapacity` instead
+
+Note: The updated constant has a different type:
+  {α : Type u} → {β : Type v} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → HashMap α β
+instead of
+  {α : Type u_1} → {β : Type u_2} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → HashMap α β
+warning: Metamath/ParserProofs.lean:1064:10: This simp argument is unused:
+  Std.HashMap.empty
+
+Hint: Omit it from the simp argument list.
+  simp [̵S̵t̵d̵.̵H̵a̵s̵h̵M̵a̵p̵.̵e̵m̵p̵t̵y̵]̵ ̵at h_find
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:1074:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:1106:24: This simp argument is unused:
+  DB.error_mkError
+
+Hint: Omit it from the simp argument list.
+  simp [h_trim,̵ ̵D̵B̵.̵e̵r̵r̵o̵r̵_̵m̵k̵E̵r̵r̵o̵r̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:1234:40: This simp argument is unused:
+  hfind_old
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind_̵o̵l̵d̵,̵ ̵h̵f̵i̵n̵d̵'] at h_success_ins
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:1268:16: This simp argument is unused:
+  DB.error_mkError
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵D̵B̵.̵e̵r̵r̵o̵r̵_̵m̵k̵E̵r̵r̵o̵r̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:1320:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:1358:8: declaration uses 'sorry'
+warning: Metamath/ParserProofs.lean:1390:67: unused variable `h_ne`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [28/55] Replayed Metamath.HashMapLemmas
+warning: Metamath/HashMapLemmas.lean:26:8: declaration uses 'sorry'
+warning: Metamath/HashMapLemmas.lean:33:8: declaration uses 'sorry'
+warning: Metamath/HashMapLemmas.lean:57:8: declaration uses 'sorry'
+warning: Metamath/HashMapLemmas.lean:82:8: declaration uses 'sorry'
+warning: Metamath/HashMapLemmas.lean:97:8: declaration uses 'sorry'
+⚠ [29/55] Replayed Metamath.DBCaseAnalysis
+warning: Metamath/DBCaseAnalysis.lean:41:30: unused variable `pos`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/DBCaseAnalysis.lean:68:8: declaration uses 'sorry'
+warning: Metamath/DBCaseAnalysis.lean:106:33: unused variable `pos`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/DBCaseAnalysis.lean:130:8: declaration uses 'sorry'
+warning: Metamath/DBCaseAnalysis.lean:169:8: declaration uses 'sorry'
+warning: Metamath/DBCaseAnalysis.lean:197:8: declaration uses 'sorry'
+✖ [48/55] Building Metamath.ParserCorrectness (1.9s)
+trace: .> LEAN_PATH=/home/zar/claude/hyperon/metamath/mm-lean4/.lake/packages/batteries/.lake/build/lib/lean:/home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean /home/zar/.elan/toolchains/leanprover--lean4---v4.24.0/bin/lean /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/ParserCorrectness.lean -o /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/ParserCorrectness.olean -i /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/ParserCorrectness.ilean -c /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/ir/Metamath/ParserCorrectness.c --setup /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/ir/Metamath/ParserCorrectness.setup.json --json
+warning: Metamath/ParserCorrectness.lean:146:8: declaration uses 'sorry'
+error: Metamath/ParserCorrectness.lean:200:39: Application type mismatch: The argument
+  h1
+has type
+  ((if (!ess && decide (Array.size f ≥ 2)) = true then
+              let v := f[1]!.value;
+              let db := db;
+              do
+              let r ←
+                forIn db.frame.hyps db fun h r =>
+                    let db := r;
+                    match db.find? h with
+                    | some (Object.hyp false prevF a) =>
+                      if (decide (Array.size prevF ≥ 2) && prevF[1]!.value == v) = true then
+                        let db :=
+                          db.mkError pos (toString "variable " ++ toString v ++ toString " already has $f hypothesis");
+                        do
+                        pure PUnit.unit
+                        pure (ForInStep.yield db)
+                      else do
+                        pure PUnit.unit
+                        pure (ForInStep.yield db)
+                    | x => do
+                      pure PUnit.unit
+                      pure (ForInStep.yield db)
+              let db : DB := r
+              db
+            else db).run.insert
+        pos label (Object.hyp ess f)).error =
+    true
+but is expected to have type
+  (DB.insert
+        (do
+          let r ←
+            forIn db.frame.hyps db fun h r =>
+                match r.find? h with
+                | some (Object.hyp false prevF a) =>
+                  if 2 ≤ Array.size prevF ∧ prevF[1]!.value = f[1]!.value then
+                    pure
+                      (ForInStep.yield
+                        (r.mkError pos
+                          (toString "variable " ++ toString f[1]!.value ++ toString " already has $f hypothesis")))
+                  else pure (ForInStep.yield r)
+                | x => pure (ForInStep.yield r)
+          r)
+        pos label (Object.hyp ess f)).error =
+    true
+in the application
+  withHyps_preserves_error
+    (DB.insert
+      (do
+        let r ←
+          forIn db.frame.hyps db fun h r =>
+              match r.find? h with
+              | some (Object.hyp false prevF a) =>
+                if 2 ≤ Array.size prevF ∧ prevF[1]!.value = f[1]!.value then
+                  pure
+                    (ForInStep.yield
+                      (r.mkError pos
+                        (toString "variable " ++ toString f[1]!.value ++ toString " already has $f hypothesis")))
+                else pure (ForInStep.yield r)
+              | x => pure (ForInStep.yield r)
+        r)
+      pos label (Object.hyp ess f))
+    (fun hyps => hyps.push label) h1
+warning: Metamath/ParserCorrectness.lean:244:8: declaration uses 'sorry'
+error: Metamath/ParserCorrectness.lean:269:3: unexpected token 'prefix'; expected '_' or identifier
+error: Metamath/ParserCorrectness.lean:269:11: unexpected identifier; expected prec
+error: Metamath/ParserCorrectness.lean:272:35: unexpected token '++'; expected ':'
+warning: Metamath/ParserCorrectness.lean:312:8: declaration uses 'sorry'
+warning: Metamath/ParserCorrectness.lean:347:8: declaration uses 'sorry'
+warning: Metamath/ParserCorrectness.lean:359:8: declaration uses 'sorry'
+warning: Metamath/ParserCorrectness.lean:369:8: declaration uses 'sorry'
+error: Metamath/ParserCorrectness.lean:434:6: Too many variable names provided at alternative `insert`: 6 provided, but 5 expected
+error: Metamath/ParserCorrectness.lean:437:6: Too many variable names provided at alternative `insertHyp`: 7 provided, but 6 expected
+error: Metamath/ParserCorrectness.lean:440:6: Too many variable names provided at alternative `pushScope`: 2 provided, but 1 expected
+error: Metamath/ParserCorrectness.lean:443:6: Too many variable names provided at alternative `popScope`: 4 provided, but 3 expected
+error: Metamath/ParserCorrectness.lean:446:6: Too many variable names provided at alternative `withFrame`: 3 provided, but 2 expected
+error: Metamath/ParserCorrectness.lean:455:70: unexpected identifier; expected '}'
+warning: Metamath/ParserCorrectness.lean:485:5: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+error: Metamath/ParserCorrectness.lean:507:20: Unknown constant `Nat.strong_induction_on`
+warning: Metamath/ParserCorrectness.lean:529:8: declaration uses 'sorry'
+warning: Metamath/ParserCorrectness.lean:561:8: declaration uses 'sorry'
+warning: Metamath/ParserCorrectness.lean:580:8: declaration uses 'sorry'
+warning: Metamath/ParserCorrectness.lean:606:8: declaration uses 'sorry'
+error: Metamath/ParserCorrectness.lean:638:62: Unknown constant `Metamath.Verify.Frame.empty`
+warning: Metamath/ParserCorrectness.lean:638:34: `Std.HashMap.empty` has been deprecated: Use `Std.HashMap.emptyWithCapacity` instead
+
+Note: The updated constant has a different type:
+  {α : Type u} → {β : Type v} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → Std.HashMap α β
+instead of
+  {α : Type u_1} → {β : Type u_2} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → Std.HashMap α β
+error: Metamath/ParserCorrectness.lean:638:21: Fields missing: `interrupt`
+
+Hint: Add missing fields:
+  ,̲ ̲i̲n̲t̲e̲r̲r̲u̲p̲t̲ ̲:̲=̲ ̲_̲
+error: Metamath/ParserCorrectness.lean:655:73: Unknown constant `Metamath.Verify.Frame.empty`
+warning: Metamath/ParserCorrectness.lean:655:45: `Std.HashMap.empty` has been deprecated: Use `Std.HashMap.emptyWithCapacity` instead
+
+Note: The updated constant has a different type:
+  {α : Type u} → {β : Type v} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → Std.HashMap α β
+instead of
+  {α : Type u_1} → {β : Type u_2} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → Std.HashMap α β
+error: Metamath/ParserCorrectness.lean:655:32: Fields missing: `interrupt`
+
+Hint: Add missing fields:
+  ,̲ ̲i̲n̲t̲e̲r̲r̲u̲p̲t̲ ̲:̲=̲ ̲_̲
+error: Metamath/ParserCorrectness.lean:660:6: unsolved goals
+case left.left
+bytes : ByteArray
+initial_state : ParserState
+h_init :
+  initial_state.db = { frame := sorry, scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none }
+h_success : ParserState := initial_state.feedAll 0 bytes
+i : Nat
+hi : i < (sorry ()).hyps.size
+⊢ HypOK { frame := sorry, scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none }
+    { frame := sorry, scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none }.frame.hyps[i]
+error: Metamath/ParserCorrectness.lean:665:8: `simp` made no progress
+error: Metamath/ParserCorrectness.lean:666:6: No goals to be solved
+error: Metamath/ParserCorrectness.lean:670:4: unsolved goals
+case right
+bytes : ByteArray
+initial_state : ParserState
+h_init :
+  initial_state.db = { frame := sorry, scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none }
+h_success : ParserState := initial_state.feedAll 0 bytes
+label : String
+⊢ ∀ (obj : Object),
+    { frame := sorry (), scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none }.find? label =
+        some obj →
+      match obj with
+      | Object.hyp ess f a => if ess = true then WellFormedFormula f else WellFormedFloat f
+      | Object.assert f fr a =>
+        WellFormedFormula f ∧
+          (∀ (i : Nat) (hi : i < fr.hyps.size),
+              HypOK
+                { frame := sorry (), scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none }
+                fr.hyps[i]) ∧
+            UniqueFloatVars
+              { frame := sorry (), scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none } fr
+      | x => True
+error: Metamath/ParserCorrectness.lean:684:19: `ll` is not a field of structure `ParserState`
+error: Metamath/ParserCorrectness.lean:684:28: `col` is not a field of structure `ParserState`
+error: Metamath/ParserCorrectness.lean:684:38: `interrupt` is not a field of structure `ParserState`
+error: Metamath/ParserCorrectness.lean:682:66: Unknown constant `Metamath.Verify.Frame.empty`
+warning: Metamath/ParserCorrectness.lean:682:38: `Std.HashMap.empty` has been deprecated: Use `Std.HashMap.emptyWithCapacity` instead
+
+Note: The updated constant has a different type:
+  {α : Type u} → {β : Type v} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → Std.HashMap α β
+instead of
+  {α : Type u_1} → {β : Type u_2} → [inst : BEq α] → [inst_1 : Hashable α] → optParam Nat 8 → Std.HashMap α β
+error: Metamath/ParserCorrectness.lean:682:25: Fields missing: `interrupt`
+
+Hint: Add missing fields:
+  ,̲ ̲i̲n̲t̲e̲r̲r̲u̲p̲t̲ ̲:̲=̲ ̲_̲
+error: Metamath/ParserCorrectness.lean:707:19: Unknown identifier `initial.db`
+error: Metamath/ParserCorrectness.lean:707:32: invalid {...} notation, expected type is not known
+error: Metamath/ParserCorrectness.lean:704:7: unsolved goals
+bytes : ByteArray
+h_success : ParserState :=
+  { db := { frame := sorry, scopes := #[], objects := Std.HashMap.empty, interrupt := sorry, error? := none },
+    tokp := TokenParser.start, charp := CharParser.ws, line := 0, linepos := 0 }
+⊢ let final := h_success.feedAll 0 bytes;
+  final.db.error = false →
+    ∀ (label : String) (obj : Object),
+      final.db.find? label = some obj →
+        match obj with
+        | Object.const a => true = true
+        | Object.var a => true = true
+        | Object.hyp ess f lbl =>
+          WellFormedFormula f ∧ (¬ess = true → Array.size f = 2 ∧ ∃ c v, f[0]! = Sym.const c ∧ f[1]! = Sym.var v)
+        | Object.assert fmla proof lbl => WellFormedFormula fmla ∧ true = true
+error: Lean exited with code 1
+✖ [50/55] Building Metamath.KernelClean (4.1s)
+trace: .> LEAN_PATH=/home/zar/claude/hyperon/metamath/mm-lean4/.lake/packages/batteries/.lake/build/lib/lean:/home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean /home/zar/.elan/toolchains/leanprover--lean4---v4.24.0/bin/lean /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean -o /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/KernelClean.olean -i /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/lib/lean/Metamath/KernelClean.ilean -c /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/ir/Metamath/KernelClean.c --setup /home/zar/claude/hyperon/metamath/mm-lean4/.lake/build/ir/Metamath/KernelClean.setup.json --json
+warning: Metamath/KernelClean.lean:130:8: This simp argument is unused:
+  Array.toList_length
+
+Hint: Omit it from the simp argument list.
+  simp [̵A̵r̵r̵a̵y̵.̵t̵o̵L̵i̵s̵t̵_̵l̵e̵n̵g̵t̵h̵,̵ ̵h̵_̵s̵i̵z̵e̵]̵[̲h̲_̲s̲i̲z̲e̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:304:12: This simp argument is unused:
+  List.filterMap
+
+Hint: Omit it from the simp argument list.
+  simp [L̵i̵s̵t̵.̵f̵i̵l̵t̵e̵r̵M̵a̵p̵,̵ ̵hs'_mem, h_var_s']
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:308:12: This simp argument is unused:
+  List.filterMap
+
+Hint: Omit it from the simp argument list.
+  simp [̵L̵i̵s̵t̵.̵f̵i̵l̵t̵e̵r̵M̵a̵p̵,̵ ̵t̵h̵i̵s̵,̵[̲t̲h̲i̲s̲,̲ h_var_s]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:432:16: declaration uses 'sorry'
+error: Metamath/KernelClean.lean:451:62: unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'alias', 'axiom', 'binder_predicate', 'builtin_dsimproc', 'builtin_dsimproc_decl', 'builtin_grind_propagator', 'builtin_initialize', 'builtin_simproc', 'builtin_simproc_decl', 'class', 'declare_simp_like_tactic', 'declare_syntax_cat', 'def', 'dsimproc', 'dsimproc_decl', 'elab', 'elab_rules', 'example', 'grind_propagator', 'inductive', 'infix', 'infixl', 'infixr', 'initialize', 'instance', 'macro', 'macro_rules', 'notation', 'opaque', 'postfix', 'prefix', 'recommended_spelling', 'register_builtin_option', 'register_error_explanation', 'register_option', 'register_tactic_tag', 'simproc', 'simproc_decl', 'structure', 'syntax', 'tactic_extension', 'theorem' or 'unif_hint'
+error: Metamath/KernelClean.lean:545:69: unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'alias', 'axiom', 'binder_predicate', 'builtin_dsimproc', 'builtin_dsimproc_decl', 'builtin_grind_propagator', 'builtin_initialize', 'builtin_simproc', 'builtin_simproc_decl', 'class', 'declare_simp_like_tactic', 'declare_syntax_cat', 'def', 'dsimproc', 'dsimproc_decl', 'elab', 'elab_rules', 'example', 'grind_propagator', 'inductive', 'infix', 'infixl', 'infixr', 'initialize', 'instance', 'macro', 'macro_rules', 'notation', 'opaque', 'postfix', 'prefix', 'recommended_spelling', 'register_builtin_option', 'register_error_explanation', 'register_option', 'register_tactic_tag', 'simproc', 'simproc_decl', 'structure', 'syntax', 'tactic_extension', 'theorem' or 'unif_hint'
+error: Metamath/KernelClean.lean:552:60: unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'alias', 'axiom', 'binder_predicate', 'builtin_dsimproc', 'builtin_dsimproc_decl', 'builtin_grind_propagator', 'builtin_initialize', 'builtin_simproc', 'builtin_simproc_decl', 'class', 'declare_simp_like_tactic', 'declare_syntax_cat', 'def', 'dsimproc', 'dsimproc_decl', 'elab', 'elab_rules', 'example', 'grind_propagator', 'inductive', 'infix', 'infixl', 'infixr', 'initialize', 'instance', 'macro', 'macro_rules', 'notation', 'opaque', 'postfix', 'prefix', 'recommended_spelling', 'register_builtin_option', 'register_error_explanation', 'register_option', 'register_tactic_tag', 'simproc', 'simproc_decl', 'structure', 'syntax', 'tactic_extension', 'theorem' or 'unif_hint'
+error: Metamath/KernelClean.lean:623:6: Unknown identifier `subst_eq_foldlM`
+error: Metamath/KernelClean.lean:621:44: unsolved goals
+σ : Std.HashMap String Formula
+f g : Formula
+hf : 0 < Array.size f
+hhead : ∃ c, f[0]! = Sym.const c
+h_sub : Formula.subst σ f = Except.ok g
+⊢ ∃ hg, g[0] = f[0]
+error: Metamath/KernelClean.lean:719:16: Unknown identifier `subst_eq_foldlM`
+error: Metamath/KernelClean.lean:717:39: unsolved goals
+σ : Std.HashMap String Formula
+f g : Formula
+hsub : Formula.subst σ f = Except.ok g
+⊢ g.toList.tail =
+    List.flatMap
+      (fun s =>
+        match s with
+        | Sym.const c => [s]
+        | Sym.var v =>
+          match σ[v]? with
+          | none => []
+          | some e => List.drop 1 e.toList)
+      f.toList.tail
+error: Metamath/KernelClean.lean:760:24: Unknown constant `Metamath.Verify.Formula.subst_preserves_head_of_const0`
+error: Metamath/KernelClean.lean:760:9: Tactic `rcases` failed: `x✝ : ?m.87` is not an inductive datatype
+warning: Metamath/KernelClean.lean:785:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:800:8: This simp argument is unused:
+  toExprOpt
+
+Hint: Omit it from the simp argument list.
+  simp [t̵o̵E̵x̵p̵r̵O̵p̵t̵,̵ ̵h_size_pos] at h_conv
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:886:33: This simp argument is unused:
+  List.get_eq_getElem
+
+Hint: Omit it from the simp argument list.
+  simp only [hi, getElem!_pos,̵ ̵L̵i̵s̵t̵.̵g̵e̵t̵_̵e̵q̵_̵g̵e̵t̵E̵l̵e̵m̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+error: Metamath/KernelClean.lean:934:27: Unknown identifier `mapM`
+error: Metamath/KernelClean.lean:934:16: Tactic `cases` failed: major premise type is not an inductive type
+  ?m.143
+
+Explanation: the `cases` tactic is for constructor-based reasoning as well as for applying custom cases principles with a 'using' clause or a registered '@[cases_eliminator]' theorem. The above type neither is an inductive type nor has a registered theorem.
+
+case cons.some.cons.inl
+α β : Type u_1
+f : α → Option β
+y : β
+a : α
+as : List α
+ih : ∀ (ys : List β), List.mapM f as = some ys → y ∈ ys → ∃ x, x ∈ as ∧ f x = some y
+y_head : β
+h_fa : f a = some y_head
+y_head' : β
+ys_tail : List β
+h_mem : y ∈ y_head' :: ys_tail
+h : ∃ a, List.mapM f as = some a ∧ y_head :: a = y_head' :: ys_tail
+h_eq : y = y_head'
+x✝ : ?m.143
+hm : sorry = x✝
+⊢ ∃ x, x ∈ a :: as ∧ f x = some y
+error: Metamath/KernelClean.lean:949:29: Unknown identifier `mapM`
+error: Metamath/KernelClean.lean:949:18: Tactic `cases` failed: major premise type is not an inductive type
+  ?m.156
+
+Explanation: the `cases` tactic is for constructor-based reasoning as well as for applying custom cases principles with a 'using' clause or a registered '@[cases_eliminator]' theorem. The above type neither is an inductive type nor has a registered theorem.
+
+α β : Type u_1
+f : α → Option β
+y : β
+a : α
+as : List α
+ih : ∀ (ys : List β), List.mapM f as = some ys → y ∈ ys → ∃ x, x ∈ as ∧ f x = some y
+y_head : β
+h_fa : f a = some y_head
+y_head' : β
+ys_tail : List β
+h_mem : y ∈ y_head' :: ys_tail
+h : ∃ a, List.mapM f as = some a ∧ y_head :: a = y_head' :: ys_tail
+h_mem_tail : y ∈ ys_tail
+x✝ : ?m.156
+hm : sorry = x✝
+⊢ List.mapM f as = some ys_tail
+warning: Metamath/KernelClean.lean:983:8: declaration uses 'sorry'
+error: Metamath/KernelClean.lean:1061:61: unexpected token '/--'; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'alias', 'axiom', 'binder_predicate', 'builtin_dsimproc', 'builtin_dsimproc_decl', 'builtin_grind_propagator', 'builtin_initialize', 'builtin_simproc', 'builtin_simproc_decl', 'class', 'declare_simp_like_tactic', 'declare_syntax_cat', 'def', 'dsimproc', 'dsimproc_decl', 'elab', 'elab_rules', 'example', 'grind_propagator', 'inductive', 'infix', 'infixl', 'infixr', 'initialize', 'instance', 'macro', 'macro_rules', 'notation', 'opaque', 'postfix', 'prefix', 'recommended_spelling', 'register_builtin_option', 'register_error_explanation', 'register_option', 'register_tactic_tag', 'simproc', 'simproc_decl', 'structure', 'syntax', 'tactic_extension', 'theorem' or 'unif_hint'
+error: Metamath/KernelClean.lean:1062:65: unexpected identifier; expected '#guard_msgs', 'abbrev', 'add_decl_doc', 'alias', 'axiom', 'binder_predicate', 'builtin_dsimproc', 'builtin_dsimproc_decl', 'builtin_grind_propagator', 'builtin_initialize', 'builtin_simproc', 'builtin_simproc_decl', 'class', 'declare_simp_like_tactic', 'declare_syntax_cat', 'def', 'dsimproc', 'dsimproc_decl', 'elab', 'elab_rules', 'example', 'grind_propagator', 'inductive', 'infix', 'infixl', 'infixr', 'initialize', 'instance', 'macro', 'macro_rules', 'notation', 'opaque', 'postfix', 'prefix', 'recommended_spelling', 'register_builtin_option', 'register_error_explanation', 'register_option', 'register_tactic_tag', 'simproc', 'simproc_decl', 'structure', 'syntax', 'tactic_extension', 'theorem' or 'unif_hint'
+error: Metamath/KernelClean.lean:1109:8: Unknown identifier `toFrame_hyps_eq`
+error: Metamath/KernelClean.lean:1110:105: Unknown identifier `h`
+warning: Metamath/KernelClean.lean:1174:12: This simp argument is unused:
+  h_find
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵f̵i̵n̵d̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1179:16: This simp argument is unused:
+  h_find
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵f̵i̵n̵d̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1182:16: This simp argument is unused:
+  h_find
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵f̵i̵n̵d̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1186:18: This simp argument is unused:
+  h_find
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵f̵i̵n̵d̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1191:22: This simp argument is unused:
+  h_expr
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵e̵x̵p̵r̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1212:18: This simp argument is unused:
+  h_find
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵f̵i̵n̵d̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1215:16: This simp argument is unused:
+  h_find
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵h̵_̵f̵i̵n̵d̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1283:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:1375:65: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:1378:8: This simp argument is unused:
+  Array.toList_extract_dropLastN stack k h
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵A̵r̵r̵a̵y̵.̵t̵o̵L̵i̵s̵t̵_̵e̵x̵t̵r̵a̵c̵t̵_̵d̵r̵o̵p̵L̵a̵s̵t̵N̵ ̵s̵t̵a̵c̵k̵ ̵k̵ ̵h̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1382:73: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:1387:8: This simp argument is unused:
+  Array.window_toList_map stack off len toExpr h
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵A̵r̵r̵a̵y̵.̵w̵i̵n̵d̵o̵w̵_̵t̵o̵L̵i̵s̵t̵_̵m̵a̵p̵ ̵s̵t̵a̵c̵k̵ ̵o̵f̵f̵ ̵l̵e̵n̵ ̵t̵o̵E̵x̵p̵r̵ ̵h̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1610:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:1660:43: This simp argument is unused:
+  List.flatMap_cons
+
+Hint: Omit it from the simp argument list.
+  simp only [h_not_var, ite_false, L̵i̵s̵t̵.̵f̵l̵a̵t̵M̵a̵p̵_̵c̵o̵n̵s̵,̵ ̵List.singleton_append]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1676:16: This simp argument is unused:
+  Spec.Variable.mk
+
+Hint: Omit it from the simp argument list.
+  simp [̵S̵p̵e̵c̵.̵V̵a̵r̵i̵a̵b̵l̵e̵.̵m̵k̵]̵ ̵at h_lookup
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1679:31: This simp argument is unused:
+  List.map_append
+
+Hint: Omit it from the simp argument list.
+  simp only [h_lookup, List.map_̵a̵p̵p̵e̵n̵d̵,̵ ̵L̵i̵s̵t̵.̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1679:48: This simp argument is unused:
+  List.map
+
+Hint: Omit it from the simp argument list.
+  simp only [h_lookup, List.map_append,̵ ̵L̵i̵s̵t̵.̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+error: Metamath/KernelClean.lean:1765:26: Unknown constant `Metamath.Verify.Formula.subst_ok_flatMap_tail`
+warning: Metamath/KernelClean.lean:1870:5: unused variable `h_bound`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:1872:5: unused variable `h_sz`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:1920:17: This simp argument is unused:
+  h0
+
+Hint: Omit it from the simp argument list.
+  simp only [h0̵,̵ ̵h̵1]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1931:17: This simp argument is unused:
+  h0
+
+Hint: Omit it from the simp argument list.
+  simp only ̵[̵h̵0̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:1943:29: unused variable `lbl`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2044:30: unused variable `lbl'`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2113:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:2389:13: unused variable `h_i`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2405:3: unused variable `db`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2405:20: unused variable `dv`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2406:3: unused variable `σ_impl`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2407:26: unused variable `σ_typed`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2549:7: unused variable `needed`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/KernelClean.lean:2667:16: This simp argument is unused:
+  Bind.bind
+
+Hint: Omit it from the simp argument list.
+  simp [B̵i̵n̵d̵.̵b̵i̵n̵d̵,̵ ̵Except.bind] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:2667:27: This simp argument is unused:
+  Except.bind
+
+Hint: Omit it from the simp argument list.
+  simp [Bind.bind,̵ ̵E̵x̵c̵e̵p̵t̵.̵b̵i̵n̵d̵] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:2674:16: This simp argument is unused:
+  Functor.map
+
+Hint: Omit it from the simp argument list.
+  simp [F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵,̵ ̵Except.map] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:2674:29: This simp argument is unused:
+  Except.map
+
+Hint: Omit it from the simp argument list.
+  simp [Functor.map,̵ ̵E̵x̵c̵e̵p̵t̵.̵m̵a̵p̵] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:2734:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:2800:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:2877:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:2993:14: This simp argument is unused:
+  Array.back!_push
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵A̵r̵r̵a̵y̵.̵b̵a̵c̵k̵!̵_̵p̵u̵s̵h̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:3005:12: This simp argument is unused:
+  Array.back!_push
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵A̵r̵r̵a̵y̵.̵b̵a̵c̵k̵!̵_̵p̵u̵s̵h̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/KernelClean.lean:3041:8: declaration uses 'sorry'
+warning: Metamath/KernelClean.lean:3083:8: declaration uses 'sorry'
+error: Lean exited with code 1
+Some required targets logged failures:
+- Metamath.ParserCorrectness
+- Metamath.KernelClean

@@ -1,0 +1,175 @@
+⚠ [2/55] Replayed Metamath.Spec
+warning: Metamath/Spec.lean:189:23: unused variable `c`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/Spec.lean:237:8: declaration uses 'sorry'
+warning: Metamath/Spec.lean:253:8: declaration uses 'sorry'
+warning: Metamath/Spec.lean:271:8: declaration uses 'sorry'
+⚠ [6/55] Replayed Metamath.Verify
+warning: Metamath/Verify.lean:37:8: This simp argument is unused:
+  getElem!_def
+
+Hint: Omit it from the simp argument list.
+  simp [̵g̵e̵t̵E̵l̵e̵m̵!̵_̵d̵e̵f̵,̵ ̵g̵e̵t̵E̵l̵e̵m̵_̵t̵o̵L̵i̵s̵t̵,̵[̲g̲e̲t̲E̲l̲e̲m̲_̲t̲o̲L̲i̲s̲t̲,̲ h]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/Verify.lean:428:8: This simp argument is unused:
+  Array.getBang_eq_get_nat
+
+Hint: Omit it from the simp argument list.
+  simp [A̵r̵r̵a̵y̵.̵g̵e̵t̵B̵a̵n̵g̵_̵e̵q̵_̵g̵e̵t̵_̵n̵a̵t̵,̵ ̵h_idx, bind, Except.bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/Verify.lean:462:8: This simp argument is unused:
+  Array.getBang_eq_get_nat
+
+Hint: Omit it from the simp argument list.
+  simp [A̵r̵r̵a̵y̵.̵g̵e̵t̵B̵a̵n̵g̵_̵e̵q̵_̵g̵e̵t̵_̵n̵a̵t̵,̵ ̵h_idx]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+⚠ [16/55] Replayed Metamath.ArrayListExt
+warning: Metamath/ArrayListExt.lean:284:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: Metamath/ArrayListExt.lean:530:48: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ArrayListExt.lean:586:62: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ArrayListExt.lean:612:17: unused variable `h`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [17/55] Replayed Metamath.Bridge.Basics
+warning: Metamath/Bridge/Basics.lean:105:17: unused variable `c`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/Bridge/Basics.lean:217:6: unused variable `c`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/Bridge/Basics.lean:217:8: unused variable `v`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [19/55] Replayed Metamath.KernelExtras
+warning: Metamath/KernelExtras.lean:158:16: declaration uses 'sorry'
+warning: Metamath/KernelExtras.lean:175:16: declaration uses 'sorry'
+⚠ [22/55] Replayed Metamath.ParserInvariants
+warning: Metamath/ParserInvariants.lean:57:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:83:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:134:67: unused variable `h_ne`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ParserInvariants.lean:203:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:233:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:265:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:341:3: unused variable `h_success`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: Metamath/ParserInvariants.lean:371:8: declaration uses 'sorry'
+warning: Metamath/ParserInvariants.lean:445:8: declaration uses 'sorry'
+⚠ [24/55] Replayed Metamath.ParserProofs
+warning: Metamath/ParserProofs.lean:142:8: This simp argument is unused:
+  h_some
+
+Hint: Omit it from the simp argument list.
+  simp [h_̵s̵o̵m̵e̵,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:142:16: This simp argument is unused:
+  h
+
+Hint: Omit it from the simp argument list.
+  simp [h_some,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:144:49: This simp argument is unused:
+  h
+
+Hint: Omit it from the simp argument list.
+  simp [DB.mkError,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:164:30: This simp argument is unused:
+  DB.mkError_frame
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵D̵B̵.̵m̵k̵E̵r̵r̵o̵r̵_̵f̵r̵a̵m̵e̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:233:28: This simp argument is unused:
+  DB.find?
+
+Hint: Omit it from the simp argument list.
+  simp [D̵B̵.̵f̵i̵n̵d̵?̵,̵ ̵hfind', hok] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:233:46: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:278:28: This simp argument is unused:
+  DB.find?
+
+Hint: Omit it from the simp argument list.
+  simp [D̵B̵.̵f̵i̵n̵d̵?̵,̵ ̵hfind', hok] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:278:46: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:325:22: This simp argument is unused:
+  ite_false
+
+Hint: Omit it from the simp argument list.
+  simp only [h_err,̵ ̵i̵t̵e̵_̵f̵a̵l̵s̵e̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:381:14: This simp argument is unused:
+  DB.insert
+
+Hint: Omit it from the simp argument list.
+  simp [DB.i̵n̵s̵e̵r̵t̵,̵ ̵D̵B̵.̵find?, DB.mkError, DB.error, hobj, h_strict] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:381:25: This simp argument is unused:
+  DB.find?
+
+Hint: Omit it from the simp argument list.
+  simp [DB.insert, DB.f̵i̵n̵d̵?̵,̵ ̵D̵B̵.̵mkError, DB.error, hobj, h_strict] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:399:30: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, h̵f̵i̵n̵d̵,̵ ̵KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:412:52: This simp argument is unused:
+  hok
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hfind',̵ ̵h̵o̵k̵] at h_success
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:426:28: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, h̵f̵i̵n̵d̵,̵ ̵KernelExtras.HashMap.find?_insert_ne db.objects h_ne]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Metamath/ParserProofs.lean:437:32: This simp argument is unused:
+  hfind
+
+Hint: Omit it from the simp argument list.
+  simp [DB.find?, hf̵i̵n̵d̵,̵ ̵h̵obj, hok]
+
+Note: This linter can be disabled with `set_option linter.unusedSim

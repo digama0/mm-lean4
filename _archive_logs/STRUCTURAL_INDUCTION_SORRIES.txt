@@ -1,0 +1,185 @@
+================================================================================
+TOP 10 CANDIDATES: SORRIES PROVABLE BY STRUCTURAL INDUCTION
+================================================================================
+
+QUICK SUMMARY: Of ~100 sorries in codebase, only 2-3 remain that are truly
+provable by simple structural induction on concrete types without deeper context.
+Most structural induction lemmas are already proven in ArrayListExt.lean!
+
+================================================================================
+TIER 1: IMMEDIATELY PROVABLE (5 LINES)
+================================================================================
+
+RANK 1: Array.getElem! Head Preservation After Push
+---
+File:     /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelExtras.lean
+Line:     170
+Type:     Array element indexing (concrete property)
+
+Statement:
+  have h_head : (a.push x)[0]! = a[0]! := by sorry
+
+Inductive Type:  Array (no induction needed - direct property)
+Strategy:        Array.push appends to end; index 0 unchanged
+Proof Sketch:    simp [Array.get_push_lt]  -- or similar Array lemma
+Estimated:       5 lines
+
+Why Obvious:
+  - This is not recursive induction - it's a single Array operation
+  - Array.push is an array extension operation
+  - Indexing at position 0 cannot be affected by pushing to the end
+  - Use Batteries Array lemmas about get_push_lt
+
+
+RANK 2: toExprOpt Case Split on Size
+---
+File:     /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelClean.lean
+Line:     456
+Type:     Formula option conversion
+
+Statement:
+  @[simp] theorem toExprOpt_some_iff_toExpr
+      (f : Verify.Formula) (e : Spec.Expr) :
+    toExprOpt f = some e ↔ (f.size > 0 ∧ toExpr f = e)
+
+Inductive Type:  None (case analysis on size property)
+Strategy:        Case split: f.size > 0 vs. f.size = 0
+Proof Sketch:    
+  constructor
+  · intro h; -- toExprOpt f = some e → ...
+    unfold toExprOpt at h
+    cases h_size : f.size with
+    | zero => simp [h_size] at h  -- size 0: contradiction
+    | succ n => simp [h_size] at h; exact ⟨Nat.succ_pos n, ...⟩
+  · intro ⟨h_pos, h_eq⟩; -- (f.size > 0 ∧ toExpr f = e) → toExprOpt f = some e
+    unfold toExprOpt
+    simp [h_pos, h_eq]
+
+Estimated:       10 lines
+
+Why Obvious:
+  - toExprOpt is a simple definition with size check
+  - The equivalence is purely by definition unfolding
+  - No induction, just case splitting on Nat size
+
+
+================================================================================
+TIER 2: STRUCTURAL INDUCTIONS REQUIRING 1-2 HELPER LEMMAS (12-15 LINES)
+================================================================================
+
+RANK 3: List Fold Head Preservation
+---
+File:     /home/zar/claude/hyperon/metamath/mm-lean4/Metamath/KernelExtras.lean
+Line:     153
+Type:     List fold with Array accumulator
+
+Statement:
+  theorem foldl_from_pos1_preserves_head {a : Metamath.Verify.Formula} 
+      (suffix : List Metamath.Verify.Sym) :
+      (suffix.foldl (fun acc x => acc.push x) a)[0]! = a[0]! := by
+
+Current Structure (lines 154-176):
+  induction suffix generalizing a with
+  | nil => rfl
+  | cons x xs ih =>
+    simp only [List.foldl_cons]
+    have h_head : (a.push x)[0]! = a[0]! := by sorry  <-- BLOCKS HERE
+    have ih_applied := @ih (a.push x)
+    rw [← h_head]
+    exact ih_applied
+
+Inductive Type:  List (suffix)
+Strategy:        List induction (nil/cons)
+Blocking Sorry:  h_head - depends on Rank 1
+Proof Sketch:    Replace sorry with: simp [Array.get_push_lt]
+Estimated:       12 lines total (structure provided, need h_head)
+
+
+================================================================================
+TIER 3: ALREADY PROVEN (NOT SORRIES)
+================================================================================
+
+The following 7 candidates are ALREADY PROVEN and do NOT contain sorries:
+
+RANK 4: Array.getElem! from getElem? equivalence
+  File: ArrayListExt.lean:549
+  Type: Array indexing
+  Status: COMPLETE PROOF (lines 549-557)
+
+RANK 5: MapM Length Preservation (via mapM.loop)
+  File: ArrayListExt.lean:54
+  Type: List monadic mapping
+  Status: COMPLETE INDUCTION (lines 54-75)
+
+RANK 6: MapM All Elements Succeed
+  File: ArrayListExt.lean:185
+  Type: List monadic success
+  Status: COMPLETE INDUCTION (lines 185-209)
+
+RANK 7: List AND Folding
+  File: ArrayListExt.lean:97
+  Type: List fold with boolean
+  Status: COMPLETE INDUCTION (lines 100-121)
+
+RANK 8: FilterMap After MapM
+  File: ArrayListExt.lean:465
+  Type: List monadic composition
+  Status: COMPLETE INDUCTION (lines 465-497)
+
+RANK 9: Array Extract Take Pattern
+  File: ArrayListExt.lean:577
+  Type: Array window operation
+  Status: COMPLETE PROOF (lines 577-580)
+
+RANK 10: List Take Equals DropLastN
+  File: ArrayListExt.lean:33
+  Type: List length manipulation
+  Status: COMPLETE PROOF (lines 33-37)
+
+
+================================================================================
+BONUS CANDIDATES: Provable but Requiring Library Lemmas
+================================================================================
+
+CANDIDATE A: HashMap Insert/Lookup (Same Key)
+---
+File:     KernelExtras.lean:196
+Line:     196
+Type:     HashMap key-value store
+
+Statement:
+  @[simp] theorem find?_insert_self (m : Std.HashMap α β) (k : α) (v : β) :
+    (m.insert k v)[k]? = some v
+
+Status:   SORRY (line 202)
+Issue:    Requires Std.HashMap library lemmas (not in Batteries yet)
+Strategy: Case analysis on HashMap bucket structure + BEq equality
+
+This is NOT a simple structural induction - it requires understanding
+HashMap internals. Skip this for structural induction ranking.
+
+
+================================================================================
+FINAL RECOMMENDATIONS
+================================================================================
+
+PRIORITY 1 - Fill immediately (5 minutes):
+  1. KernelExtras.lean:170 - Array.getElem! invariance
+     Needs: simp [Array.get_push_lt]
+
+PRIORITY 2 - Fill next (10 minutes):
+  2. KernelClean.lean:456 - toExprOpt case split
+     Needs: Unfold definition + size case analysis
+
+PRIORITY 3 - Depends on Priority 1:
+  3. KernelExtras.lean:153 - List fold
+     Becomes trivial once #1 is done
+
+CONCLUSION:
+  - Only 3 true sorries suitable for structural induction
+  - 2 are absolutely trivial (5 and 10 lines)
+  - 1 depends on the first
+  - Most structural induction lemmas are already proven
+  - Total proof effort: ~25 lines to close all structural induction gaps
+
+================================================================================
