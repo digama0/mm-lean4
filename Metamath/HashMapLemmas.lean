@@ -188,7 +188,42 @@ The DB object map is just a HashMap String Object.
 These lemmas directly apply to proving parser properties.
 -/
 
-/-- DB.find? after insert (no error case) -/
+/-- Helper: The const check in DB.insert only potentially sets error, doesn't modify objects -/
+theorem DB.insert_const_check_preserves_objects
+    (db : Verify.DB) (pos : Verify.Pos) (l : String) (obj : String → Verify.Object) :
+    let db_after_const_check := match obj l with
+      | .const _ =>
+        if !db.permissive && db.scopes.size > 0 then
+          db.mkError pos s!"$c must be in outermost block (spec Section 4.2.8)"
+        else db
+      | _ => db
+    db_after_const_check.objects = db.objects := by
+  cases obj l <;> (simp only [Verify.DB.mkError]; try (split <;> rfl))
+
+/-- Helper: The const check preserves find? results -/
+theorem DB.insert_const_check_preserves_find
+    (db : Verify.DB) (pos : Verify.Pos) (l label : String) (obj : String → Verify.Object) :
+    let db_after_const_check := match obj l with
+      | .const _ =>
+        if !db.permissive && db.scopes.size > 0 then
+          db.mkError pos s!"$c must be in outermost block (spec Section 4.2.8)"
+        else db
+      | _ => db
+    db_after_const_check.find? label = db.find? label := by
+  simp only [Verify.DB.find?]
+  exact congrArg (·[label]?) (DB.insert_const_check_preserves_objects db pos l obj)
+
+/-- DB.find? after insert (no error case)
+
+**STATUS**: Requires equation lemmas for DB.insert to properly characterize
+its control flow. The proof structure is:
+1. const check preserves objects (proven above)
+2. Since db.find? label = none, we skip the duplicate check branch
+3. We reach the insert branch, so db'.objects = db.objects.insert label (obj label)
+4. Therefore db'.find? label = some (obj label)
+
+**TODO**: Add equation lemmas to Verify.lean that expose DB.insert's behavior
+in each control flow branch, then use them here. -/
 theorem DB.find?_after_insert_no_error
     (db : Verify.DB) (pos : Verify.Pos) (label : String) (obj : String → Verify.Object) :
     db.error = false →
@@ -197,11 +232,6 @@ theorem DB.find?_after_insert_no_error
     db'.error = false →
     db'.find? label = some (obj label) := by
   intro h_no_err h_not_found h_no_err'
-  -- DB.insert is complex with const check and duplicate check
-  -- Since we're given db.find? label = none and db'.error = false,
-  -- the insert must have succeeded by adding to objects
-  -- This requires detailed unfolding of DB.insert which is complex
-  -- For now, leave as sorry pending more investigation
   sorry
 
 /-! ## Tactic Helpers for Sonnet
