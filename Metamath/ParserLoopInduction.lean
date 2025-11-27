@@ -117,22 +117,6 @@ theorem sym_preserves_error (s : ParserState) (pos : Pos) (tk : ByteSlice) (obj 
       · exact h_err'
     · exact h_err
 
-/-- feedTokens preserves error: all paths either set error or use withDB with error-preserving ops -/
-theorem feedTokens_preserves_error (s : ParserState) (arr : Array Sym) (tp : TokensParser) :
-    s.db.error? ≠ none → (s.feedTokens arr tp).db.error? ≠ none := by
-  intro h_err
-  -- feedTokens (Verify.lean:605-627) structure:
-  -- withAt l fun _ => Id.run do
-  --   unless arr.size > 0 && !arr[0]!.isVar do return s.mkError
-  --   match k with
-  --   | .float => unless check; s.withDB insertHyp; pure { s with tokp := .start }
-  --   | .ess => s.withDB insertHyp; pure { s with tokp := .start }
-  --   | .ax => s.withDB insertAxiom; pure { s with tokp := .start }
-  --   | .thm => match trimFrame' with ok => (interrupt? or resumeThm) | error => mkError
-  -- All paths: withAt wrapping (mkError or withDB+insert or resumeThm)
-  -- Note: withAt_preserves_error is defined below, so we use sorry structure
-  sorry -- Structure verified, depends on withAt_preserves_error (defined below)
-
 /-- withAt preserves error: either returns input unchanged or wraps error message (both keep error? ≠ none) -/
 theorem withAt_preserves_error (l : String) (f : Unit → ParserState) :
     (f ()).db.error? ≠ none → (ParserState.withAt l f).db.error? ≠ none := by
@@ -150,6 +134,74 @@ theorem withAt_preserves_error (l : String) (f : Unit → ParserState) :
     exact fun h => Option.noConfusion h
   · -- If-let didn't match: returns s unchanged
     exact h_err
+
+/-- feedTokens preserves error: all paths either set error or use withDB with error-preserving ops -/
+theorem feedTokens_preserves_error (s : ParserState) (arr : Array Sym) (tp : TokensParser) :
+    s.db.error? ≠ none → (s.feedTokens arr tp).db.error? ≠ none := by
+  intro h_err
+  -- feedTokens (Verify.lean:605-627) structure:
+  -- withAt l fun _ => Id.run do
+  --   unless arr.size > 0 && !arr[0]!.isVar do return s.mkError
+  --   match k with
+  --   | .float => unless check; s.withDB insertHyp; pure { s with tokp := .start }
+  --   | .ess => s.withDB insertHyp; pure { s with tokp := .start }
+  --   | .ax => s.withDB insertAxiom; pure { s with tokp := .start }
+  --   | .thm => match trimFrame' with ok => (interrupt? or resumeThm) | error => mkError
+  unfold ParserState.feedTokens
+  cases tp with
+  | mk k pos l =>
+    simp only
+    apply withAt_preserves_error
+    simp only [Id.run, pure]
+    -- Unless check for first symbol
+    split
+    case isTrue h_ok =>
+      -- Unless passed, continue to match on k
+      split
+      case h_1 =>  -- .float
+        split
+        case isTrue h_float_ok =>
+          -- Result: { db := (s.withDB insertHyp).db, tokp := .start, ... }.db.error? ≠ none
+          -- Which simplifies to: (s.withDB insertHyp).db.error? ≠ none
+          have h_withdb : (s.withDB fun db => db.insertHyp pos l false arr).db.error? ≠ none := by
+            apply withDB_preserves_error?
+            · intro h
+              exact ParserCorrectness.insertHyp_preserves_error s.db pos l false arr h
+            · exact h_err
+          exact h_withdb
+        case isFalse h_float_bad =>
+          exact ParserState_mkError_sets_error s pos _
+      case h_2 =>  -- .ess
+        have h_withdb : (s.withDB fun db => db.insertHyp pos l true arr).db.error? ≠ none := by
+          apply withDB_preserves_error?
+          · intro h
+            exact ParserCorrectness.insertHyp_preserves_error s.db pos l true arr h
+          · exact h_err
+        exact h_withdb
+      case h_3 =>  -- .ax
+        have h_withdb : (s.withDB fun db => db.insertAxiom pos l arr).db.error? ≠ none := by
+          apply withDB_preserves_error?
+          · intro h
+            exact ParserCorrectness.insertAxiom_preserves_error s.db pos l arr h
+          · exact h_err
+        exact h_withdb
+      case h_4 =>  -- .thm
+        split
+        case h_1 fr h_ok =>  -- trimFrame' = ok fr
+          split
+          case isTrue h_interrupt =>
+            -- s.withDB setting error to thm error
+            have h_withdb : (s.withDB fun db => { db with error? := some ⟨.thm pos l arr fr, default⟩ }).db.error? ≠ none := by
+              simp only [ParserState.withDB, ne_eq]
+              exact fun h => Option.noConfusion h
+            exact h_withdb
+          case isFalse h_not_interrupt =>
+            -- s.resumeThm pos l arr fr - preserves error
+            sorry -- resumeThm preserves error (complex case)
+        case h_2 msg h_err' =>  -- trimFrame' = error
+          exact ParserState_mkError_sets_error s pos _
+    case isFalse h_bad =>
+      exact ParserState_mkError_sets_error s pos _
 
 /-- feedProof preserves error: either returns s with tokp change or mkError -/
 theorem feedProof_preserves_error (s : ParserState) (tk : ByteSlice) (pr : ProofState) :
@@ -319,12 +371,21 @@ theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice)
         -- All paths inside: mkError (sets error) or withDB (preserves) or structure update
         apply withMath_preserves_error
         · intro s' tk' h_err'
-          -- Inside the do block: all paths preserve or set error
-          simp only [Id.run]
-          -- The result is Id.run of a computation that may do mkError, withDB, or structure updates
-          -- All of these preserve error
-          -- This is a complex case with loops - use sorry for now
-          sorry
+          -- Inside the do block:
+          -- unless s'.db.isVar tk' do return s'.mkError ...
+          -- for loop: each iteration does mkError or withDB (withDJ ...)
+          -- final: { s with tokp := ... }
+          simp only [Id.run, pure]
+          -- Split on the unless check
+          split
+          case isTrue h_isVar =>
+            -- unless succeeded, continue to for loop
+            -- The for loop either returns early (mkError) or completes with withDB chain
+            -- For now, use sorry as this requires loop invariant reasoning
+            sorry -- For loop preserves error via withDJ_preserves_error
+          case isFalse h_not_isVar =>
+            -- unless failed: s'.mkError
+            exact ParserState_mkError_sets_error s' (s.mkPos pos) _
         · exact h_err
   | math arr p =>
     simp only [h_tokp]
