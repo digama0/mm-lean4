@@ -4006,36 +4006,52 @@ theorem fold_maintains_provable
   Spec.Provable Γ fr (toExpr e_final) := by
   intro h_db h_fr h_fold h_init h_size h_final
 
-  -- Strategy: Build ProofValid incrementally as we process the proof array
-  -- Key insight: stepNormal maintains an invariant that connects implementation and spec
-
   unfold Spec.Provable
 
-  -- We need to build up the proof steps and show ProofValid
-  -- This requires induction on the array, but we can sketch the proof structure
+  -- Strategy: Use induction on the array converted to a list
+  -- We'll build ProofValid incrementally through the fold
 
-  -- The proof array produces a sequence of ProofStates
-  -- Each successful stepNormal corresponds to a valid ProofStep
-  -- The accumulation gives us ProofValid
+  -- Convert array foldlM to list foldlM for easier induction
+  have h_list_fold : proof.toList.foldlM (fun pr step => Verify.DB.stepNormal db pr step) pr_init = Except.ok pr_final := by
+    -- Array.foldlM = List.foldlM on toList
+    sorry  -- TODO: Array.foldlM_eq_list_foldlM lemma
 
-  -- For now, we construct the minimal witnesses:
-  -- - Empty steps list (would be filled by induction)
-  -- - Final stack with just toExpr e_final
-  -- - ProofValid for this configuration
+  -- Now induct on proof.toList
+  generalize h_proof_list : proof.toList = proof_list
+  rw [h_proof_list] at h_list_fold
+  clear h_proof_list  -- Work with the list now
 
-  refine ⟨[], [toExpr e_final], ?proof_valid, rfl⟩
+  -- Induction on proof_list
+  induction proof_list generalizing pr_init pr_final with
+  | nil =>
+    -- Base case: empty proof
+    -- foldlM [] pr_init = ok pr_init, so pr_final = pr_init
+    simp [List.foldlM] at h_list_fold
+    cases h_list_fold  -- pr_final = pr_init
 
-  -- Construct ProofValid Γ fr [toExpr e_final] []
-  -- This is the base case: empty proof, singleton stack
-  -- ProofValid.nil gives us ProofValid Γ fr fr.mand []
-  -- But we need ProofValid Γ fr [toExpr e_final] []
+    -- With pr_init.stack = [] and pr_final.stack.size = 1, we have a contradiction
+    -- Unless... wait, empty proof can't produce singleton stack!
+    sorry  -- This case may be impossible given the preconditions
 
-  -- The full proof requires showing:
-  -- 1. Each stepNormal preserves/extends ProofValid
-  -- 2. The final state matches our singleton requirement
-  -- 3. Array induction connects initial empty to final singleton
+  | cons label rest ih =>
+    -- Inductive case: label :: rest
+    -- foldlM (label :: rest) pr_init = foldlM rest (stepNormal pr_init label)
 
-  sorry  -- TODO: Array.foldlM induction with stepNormal_sound correspondence
+    simp only [List.foldlM_cons] at h_list_fold
+
+    -- Split on the result of stepNormal
+    cases h_step : Verify.DB.stepNormal db pr_init label with
+    | error e =>
+      -- If stepNormal fails, foldlM propagates the error - contradiction!
+      simp [h_step, Bind.bind, Except.bind] at h_list_fold
+    | ok pr_next =>
+      -- stepNormal succeeded, continue with rest
+      simp [h_step] at h_list_fold
+
+      -- Apply IH to the rest of the proof
+      -- We need to maintain ProofStateInv through the fold
+      sorry  -- TODO: Use stepNormal_sound to get invariant for pr_next
+            -- Then apply IH to rest with pr_next as new init
 
 /-! ## 🎯 MAIN SOUNDNESS THEOREM (Architecture Complete!) -/
 
