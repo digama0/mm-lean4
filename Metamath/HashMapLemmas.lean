@@ -213,26 +213,16 @@ theorem DB.insert_const_check_preserves_find
   simp only [Verify.DB.find?]
   exact congrArg (·[label]?) (DB.insert_const_check_preserves_objects db pos l obj)
 
-/-- DB.find? after insert (no error case)
-
-**STATUS**: Requires equation lemmas for DB.insert to properly characterize
-its control flow. The proof structure is:
-1. const check preserves objects (proven above)
-2. Since db.find? label = none, we skip the duplicate check branch
-3. We reach the insert branch, so db'.objects = db.objects.insert label (obj label)
-4. Therefore db'.find? label = some (obj label)
-
-**TODO**: Add equation lemmas to Verify.lean that expose DB.insert's behavior
-in each control flow branch, then use them here. -/
+/-- DB.find? after insert (no error case) - proven using the equation lemma
+`Verify.DB.insert_find?_self` from Verify.lean. -/
 theorem DB.find?_after_insert_no_error
     (db : Verify.DB) (pos : Verify.Pos) (label : String) (obj : String → Verify.Object) :
     db.error = false →
     db.find? label = none →
-    let db' := db.insert pos label obj
-    db'.error = false →
-    db'.find? label = some (obj label) := by
+    (db.insert pos label obj).error = false →
+    (db.insert pos label obj).find? label = some (obj label) := by
   intro h_no_err h_not_found h_no_err'
-  sorry
+  exact Verify.DB.insert_find?_self db pos label obj h_no_err h_not_found h_no_err'
 
 /-! ## Tactic Helpers for Sonnet
 
