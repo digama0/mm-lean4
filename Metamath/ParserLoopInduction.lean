@@ -1029,7 +1029,58 @@ theorem insertHyp_call_order
   -- Use congrArg on push
   exact congrArg (·.push label) h4
 
-/-! ## Helper Lemmas for Common Patterns -/
+/-! ## Helper Lemmas for feedToken Frame Behavior -/
+
+/-- pushScope only modifies scopes, not frame -/
+theorem pushScope_preserves_frame (db : DB) :
+    (Verify.DB.pushScope db).frame = db.frame := rfl
+
+/-- popScope either shrinks frame or sets error (can't pop global scope) -/
+theorem popScope_frame_behavior (pos : Pos) (db : DB) :
+    (∃ n, (Verify.DB.popScope pos db).frame = db.frame.shrink n) ∨
+    (Verify.DB.popScope pos db).error = true := by
+  unfold Verify.DB.popScope
+  cases h : db.scopes.back? with
+  | none => right; simp only [h, Verify.DB.mkError, Verify.DB.error]; rfl
+  | some sc => left; simp only [h]; exact ⟨sc, rfl⟩
+
+/-- ParserState.withDB preserves frame when the DB operation preserves frame -/
+theorem withDB_preserves_frame' (s : ParserState) (f : DB → DB)
+    (h : (f s.db).frame = s.db.frame) :
+    (s.withDB f).db.frame = s.db.frame := by
+  simp only [ParserState.withDB]; exact h
+
+/-- ParserState.label either preserves frame or sets error -/
+theorem label_frame_behavior (s : ParserState) (pos : Pos) (tk : ByteSlice) :
+    (s.label pos tk).db.frame = s.db.frame ∨
+    (s.label pos tk).db.error = true := by
+  unfold ParserState.label
+  cases h : (Verify.toLabel tk).1 with
+  | false => right; simp only [h, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+  | true => left; simp only [h]; rfl
+
+/-- ParserState.sym either preserves frame or sets error -/
+theorem sym_frame_behavior (s : ParserState) (pos : Pos) (tk : ByteSlice) (f : String → Object) :
+    (s.sym pos tk f).db.frame = s.db.frame ∨
+    (s.sym pos tk f).db.error = true := by
+  unfold ParserState.sym
+  cases h_end : tk.eqArray "$.".toAscii with
+  | true => left; simp only [h_end]; rfl
+  | false =>
+    simp only [h_end, Bool.false_eq_true, ↓reduceIte]
+    unfold ParserState.withMath
+    cases h_ok : (Verify.toMath tk).1 with
+    | false => right; simp only [h_ok, Bool.false_eq_true, ↓reduceIte, ParserState.mkError,
+                                 Verify.DB.mkError, Verify.DB.error]; rfl
+    | true => left; simp only [h_ok, ParserState.withDB]; exact insert_preserves_frame _ _ _ _
+
+/-- ParserState.feedProof either preserves frame or sets error -/
+theorem feedProof_frame_behavior (s : ParserState) (tk : ByteSlice) (pr : ProofState) :
+    (s.feedProof tk pr).db.frame = s.db.frame ∨
+    (s.feedProof tk pr).db.error = true := by
+  -- feedProof either returns { s with tokp := .proof pr' } or s.mkError
+  -- Both preserve frame (tokp change) or set error
+  sorry
 
 /-- feedToken frame behavior: either preserves frame, shrinks via popScope, or sets error.
 
@@ -1051,13 +1102,124 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
     -- popScope case: frame is shrunk to a previous scope size
     (∃ n, (s.feedToken pos tk).db.frame = s.db.frame.shrink n) ∨
     (s.feedToken pos tk).db.error = true := by
-  -- The proof requires exhaustive case analysis on feedToken branches.
-  -- Each branch either:
-  --   1. Preserves frame exactly (left disjunct)
-  --   2. Shrinks frame via popScope (middle disjunct)
-  --   3. Sets error (right disjunct)
-  -- This is a large case analysis but straightforward structurally.
-  sorry
+  unfold ParserState.feedToken
+  -- Case on s.tokp
+  cases h_tokp : s.tokp with
+  | comment p =>
+    -- Either returns s or { s with tokp := p }
+    simp only [h_tokp]
+    cases tk.eqArray "$)".toAscii <;> left <;> rfl
+  | start =>
+    simp only [h_tokp]
+    -- Check for $(
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; simp only [h_comment]; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      -- Check for $X where X ∈ {'{', '}', 'c', 'v', 'd', ...}
+      cases h_kw : (tk.len == 2 && tk[0]! == '$'.toUInt8) with
+      | false =>
+        simp only [h_kw, Bool.false_eq_true, ↓reduceIte]
+        -- s.label case
+        cases label_frame_behavior s (s.mkPos pos) tk with
+        | inl h => left; exact h
+        | inr h => right; right; exact h
+      | true =>
+        simp only [h_kw, ↓reduceIte]
+        -- Match on tk[1]!.toChar: '{', '}', 'c', 'v', 'd', or other
+        -- Use split to handle the nested match
+        split
+        case h_1 => -- '{'
+          left; simp only [ParserState.withDB]; exact pushScope_preserves_frame s.db
+        case h_2 => -- '}'
+          simp only [ParserState.withDB]
+          cases popScope_frame_behavior (s.mkPos pos) s.db with
+          | inl h => right; left; exact h
+          | inr h => right; right; exact h
+        case h_3 => left; rfl   -- 'c'
+        case h_4 => left; rfl   -- 'v'
+        case h_5 => left; rfl   -- 'd'
+        case h_6 => -- other: s.label
+          cases label_frame_behavior s (s.mkPos pos) tk with
+          | inl h => left; exact h
+          | inr h => right; right; exact h
+  | const =>
+    simp only [h_tokp]
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      cases sym_frame_behavior s (s.mkPos pos) tk .const with
+      | inl h => left; exact h
+      | inr h => right; right; exact h
+  | var =>
+    simp only [h_tokp]
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      cases sym_frame_behavior s (s.mkPos pos) tk .var with
+      | inl h => left; exact h
+      | inr h => right; right; exact h
+  | djvars arr =>
+    simp only [h_tokp]
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      cases h_end : tk.eqArray "$.".toAscii with
+      | true => left; simp only [h_end]; rfl
+      | false =>
+        simp only [h_end, Bool.false_eq_true, ↓reduceIte]
+        -- withMath + djvars loop - complex but preserves frame
+        sorry -- djvars loop preserves frame (only modifies dj, not frame structure)
+  | math arr' p =>
+    simp only [h_tokp]
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      -- feedTokens or withMath - both preserve frame or set error
+      sorry -- feedTokens/withMath preserve frame
+  | label pos' lab =>
+    simp only [h_tokp]
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      -- Sets tokp to .math or mkError
+      cases h_kw : (tk.len == 2 && tk[0]! == '$'.toUInt8) with
+      | false => right; right; simp only [h_kw, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+      | true =>
+        simp only [h_kw, ↓reduceIte]
+        -- Match on tk[1]!.toChar: 'f', 'e', 'a', 'p', or other
+        split
+        case h_1 => left; rfl  -- 'f'
+        case h_2 => left; rfl  -- 'e'
+        case h_3 => left; rfl  -- 'a'
+        case h_4 => left; rfl  -- 'p'
+        case h_5 => right; right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+  | proof pr =>
+    simp only [h_tokp]
+    cases h_comment : tk.eqArray "$(".toAscii with
+    | true => left; rfl
+    | false =>
+      simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
+      -- finishProof or feedProof
+      -- Note: the state is modified with { s with tokp := default } first
+      cases h_end : tk.eqArray "$.".toAscii with
+      | true =>
+        simp only [h_end, ↓reduceIte]
+        -- finishProof - complex but preserves frame or sets error
+        sorry -- finishProof preserves frame
+      | false =>
+        simp only [h_end, Bool.false_eq_true, ↓reduceIte]
+        -- feedProof on { s with tokp := default }
+        -- The db is the same, so feedProof_frame_behavior applies
+        have h_db_eq : ({ s with tokp := default } : ParserState).db = s.db := rfl
+        cases feedProof_frame_behavior { s with tokp := default } tk pr with
+        | inl h => left; simp only [h_db_eq] at h; exact h
+        | inr h => right; right; simp only [h_db_eq] at h; exact h
 
 /-- Pattern: If parsing succeeds (no error), invariants were maintained -/
 theorem parsing_success_implies_invariants
