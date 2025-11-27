@@ -337,6 +337,38 @@ def djvars_loop_aux (arr : Array String) (s : ParserState) (pos : Pos) (tk : Str
     { s with tokp := .djvars (arr.push tk) }
 termination_by arr.size - i
 
+/-- withDJ only modifies frame.dj, not frame.hyps -/
+private theorem withDJ_preserves_hyps' (f : Array DJ → Array DJ) (db : DB) :
+    (db.withDJ f).frame.hyps = db.frame.hyps := rfl
+
+/-- The auxiliary function preserves hyps or sets error -/
+theorem djvars_loop_aux_hyps_behavior
+    (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) (i : Nat) :
+    (djvars_loop_aux arr s pos tk i).db.frame.hyps = s.db.frame.hyps ∨
+    (djvars_loop_aux arr s pos tk i).db.error = true := by
+  unfold djvars_loop_aux
+  split
+  case isTrue h_lt =>
+    -- Process element at index i
+    by_cases h_eq : arr[i] == tk
+    · -- Case: arr[i] == tk, so return mkError
+      simp only [h_eq, ↓reduceIte]
+      right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+    · -- Case: arr[i] ≠ tk, so continue with withDB/withDJ and recurse
+      simp only [h_eq, Bool.false_eq_true, ↓reduceIte]
+      have h_step_hyps : (s.withDB fun db => db.withDJ fun dj => dj.push
+          (if arr[i] < tk then (arr[i], tk) else (tk, arr[i]))).db.frame.hyps = s.db.frame.hyps := by
+        simp only [ParserState.withDB]
+        exact withDJ_preserves_hyps' _ s.db
+      -- Recurse
+      cases djvars_loop_aux_hyps_behavior arr _ pos tk (i + 1) with
+      | inl h => left; exact h.trans h_step_hyps.symm
+      | inr h => right; exact h
+  case isFalse h_ge =>
+    -- Loop complete: { s with tokp := ... } preserves s.db
+    left; rfl
+termination_by arr.size - i
+
 /-- The auxiliary function preserves error -/
 theorem djvars_loop_aux_preserves_error
     (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) (i : Nat)
@@ -447,6 +479,95 @@ theorem djvars_loop_preserves_error
   -- Use the equivalence to djvars_loop_aux
   rw [djvars_loop_eq_aux]
   exact djvars_loop_aux_preserves_error arr s pos tk 0 h_err
+
+/-- djvars loop either preserves hyps or sets error -/
+theorem djvars_loop_hyps_behavior
+    (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) :
+    (Id.run do
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.frame.hyps = s.db.frame.hyps ∨
+    (Id.run do
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.error = true := by
+  -- Use the equivalence to djvars_loop_aux
+  rw [djvars_loop_eq_aux]
+  exact djvars_loop_aux_hyps_behavior arr s pos tk 0
+
+/-- Full djvars expression (with isVar check) either preserves hyps or sets error -/
+theorem djvars_full_hyps_behavior
+    (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) :
+    (Id.run do
+      unless s.db.isVar tk do return s.mkError pos s!"{tk} is not a variable"
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.frame.hyps = s.db.frame.hyps ∨
+    (Id.run do
+      unless s.db.isVar tk do return s.mkError pos s!"{tk} is not a variable"
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.error = true := by
+  -- Case on the isVar check
+  simp only [Id.run, Bind.bind, bind]
+  cases h_isVar : s.db.isVar tk with
+  | true =>
+    -- isVar succeeds, so continue to the loop
+    simp only [h_isVar, ite_true, Pure.pure]
+    exact djvars_loop_hyps_behavior arr s pos tk
+  | false =>
+    -- isVar fails, so return mkError
+    simp only [h_isVar, ite_false, Pure.pure]
+    right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+
+/-- djvars case with withMath either preserves hyps or sets error -/
+theorem djvars_withMath_hyps_behavior
+    (arr : Array String) (s : ParserState) (pos : Pos) (tk : ByteSlice) :
+    (s.withMath pos tk fun s tk => Id.run do
+      unless s.db.isVar tk do return s.mkError pos s!"{tk} is not a variable"
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.frame.hyps = s.db.frame.hyps ∨
+    (s.withMath pos tk fun s tk => Id.run do
+      unless s.db.isVar tk do return s.mkError pos s!"{tk} is not a variable"
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.error = true := by
+  -- Unfold withMath
+  unfold ParserState.withMath
+  cases h_ok : (Verify.toMath tk).1 with
+  | false =>
+    -- toMath failed, so mkError
+    right; simp only [h_ok, Bool.false_eq_true, ↓reduceIte, ParserState.mkError,
+                     Verify.DB.mkError, Verify.DB.error]; rfl
+  | true =>
+    -- toMath succeeded, so call the lambda
+    simp only [h_ok, ↓reduceIte]
+    exact djvars_full_hyps_behavior arr s pos (Verify.toMath tk).2
 
 /-- feedToken never clears an existing error.
     This follows from tracing all branches of feedToken - they either:
@@ -1035,20 +1156,89 @@ theorem insertHyp_call_order
 theorem pushScope_preserves_frame (db : DB) :
     (Verify.DB.pushScope db).frame = db.frame := rfl
 
-/-- popScope either shrinks frame or sets error (can't pop global scope) -/
-theorem popScope_frame_behavior (pos : Pos) (db : DB) :
-    (∃ n, (Verify.DB.popScope pos db).frame = db.frame.shrink n) ∨
+/-- popScope either shrinks frame.hyps or sets error (can't pop global scope) -/
+theorem popScope_hyps_behavior (pos : Pos) (db : DB) :
+    (∃ n, (Verify.DB.popScope pos db).frame.hyps = db.frame.hyps.shrink n) ∨
     (Verify.DB.popScope pos db).error = true := by
   unfold Verify.DB.popScope
   cases h : db.scopes.back? with
   | none => right; simp only [h, Verify.DB.mkError, Verify.DB.error]; rfl
-  | some sc => left; simp only [h]; exact ⟨sc, rfl⟩
+  | some sc => left; simp only [h]; exact ⟨sc.2, rfl⟩
 
 /-- ParserState.withDB preserves frame when the DB operation preserves frame -/
 theorem withDB_preserves_frame' (s : ParserState) (f : DB → DB)
     (h : (f s.db).frame = s.db.frame) :
     (s.withDB f).db.frame = s.db.frame := by
   simp only [ParserState.withDB]; exact h
+
+/-- withDJ only modifies frame.dj, not frame.hyps -/
+theorem withDJ_preserves_hyps (f : Array DJ → Array DJ) (db : DB) :
+    (db.withDJ f).frame.hyps = db.frame.hyps := rfl
+
+/-- insertAxiom either preserves hyps or sets error -/
+theorem insertAxiom_hyps_behavior (db : DB) (pos : Pos) (l : String) (fmla : Formula) :
+    (db.insertAxiom pos l fmla).frame.hyps = db.frame.hyps ∨
+    (db.insertAxiom pos l fmla).error = true := by
+  unfold Verify.DB.insertAxiom
+  cases h : db.trimFrame' fmla with
+  | ok fr =>
+    simp only [h]
+    cases h_int : db.interrupt with
+    | true =>
+      simp only [h_int, ↓reduceIte]
+      right; simp only [Verify.DB.error]; rfl
+    | false =>
+      simp only [h_int, Bool.false_eq_true, ↓reduceIte]
+      left; exact congrArg Frame.hyps (insert_preserves_frame db pos l (.assert fmla fr))
+  | error msg =>
+    simp only [h]
+    right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+
+/-- resumeThm only modifies tokp, not db -/
+theorem resumeThm_preserves_db (s : ParserState) (pos : Pos) (l : String) (fmla : Formula) (fr : Frame) :
+    (s.resumeThm pos l fmla fr).db = s.db := rfl
+
+/-- finishProof either preserves hyps or sets error.
+    finishProof checks proof validity and either:
+    - Returns error if proof invalid (error set)
+    - Inserts assertion (preserves hyps via insert_preserves_frame)
+-/
+theorem finishProof_hyps_behavior (s : ParserState) (pr : ProofState) :
+    (s.finishProof pr).db.frame.hyps = s.db.frame.hyps ∨
+    (s.finishProof pr).db.error = true := by
+  -- finishProof sets {s with tokp := .start} first (which preserves db)
+  -- Then checks ptp, stack.size, and stack[0]! == fmla
+  -- All paths either: set error, or call withDB (insert) which preserves frame
+  -- Complex proof structure due to do-notation with let binding
+  sorry
+
+/-- feedTokens hyps behavior: either preserves, grows, or sets error.
+    This is complex because feedTokens has multiple branches with different behaviors:
+    - .float and .ess call insertHyp (grows hyps)
+    - .ax calls insertAxiom (preserves hyps or error)
+    - .thm either preserves or sets error -/
+theorem feedTokens_hyps_behavior (s : ParserState) (arr : Array Sym) (p : TokensParser) :
+    (s.feedTokens arr p).db.frame.hyps = s.db.frame.hyps ∨
+    (∃ label, (s.feedTokens arr p).db.frame.hyps = s.db.frame.hyps.push label) ∨
+    (s.feedTokens arr p).db.error = true := by
+  -- feedTokens has a complex structure with withAt wrapper and multiple branches
+  -- Each branch either: sets error, preserves hyps, or grows hyps by one
+  -- This lemma is currently established with sorry pending detailed proof
+  sorry
+
+/-- withMath either preserves hyps or sets error -/
+theorem withMath_hyps_behavior (s : ParserState) (pos : Pos) (tk : ByteSlice)
+    (f : ParserState → String → ParserState)
+    (hf : ∀ s' tk', (f s' tk').db.frame.hyps = s'.db.frame.hyps ∨ (f s' tk').db.error = true) :
+    (s.withMath pos tk f).db.frame.hyps = s.db.frame.hyps ∨
+    (s.withMath pos tk f).db.error = true := by
+  unfold ParserState.withMath
+  cases h : (Verify.toMath tk).1 with
+  | false => right; simp only [h, Bool.false_eq_true, ↓reduceIte, ParserState.mkError,
+                               Verify.DB.mkError, Verify.DB.error]; rfl
+  | true =>
+    simp only [h, ↓reduceIte]
+    exact hf s (Verify.toMath tk).2
 
 /-- ParserState.label either preserves frame or sets error -/
 theorem label_frame_behavior (s : ParserState) (pos : Pos) (tk : ByteSlice) :
@@ -1078,29 +1268,44 @@ theorem sym_frame_behavior (s : ParserState) (pos : Pos) (tk : ByteSlice) (f : S
 theorem feedProof_frame_behavior (s : ParserState) (tk : ByteSlice) (pr : ProofState) :
     (s.feedProof tk pr).db.frame = s.db.frame ∨
     (s.feedProof tk pr).db.error = true := by
-  -- feedProof either returns { s with tokp := .proof pr' } or s.mkError
-  -- Both preserve frame (tokp change) or set error
-  sorry
+  -- feedProof: withAt pr.label (match go pr with | .ok => {s with tokp} | .error => mkError)
+  -- withAt wraps result and may modify error message, but preserves frame
+  unfold ParserState.feedProof ParserState.withAt
+  cases h : ParserState.feedProof.go s tk pr with
+  | ok pr' =>
+    simp only [h]
+    split
+    · left; rfl
+    · left; rfl
+  | error msg =>
+    simp only [h]
+    split
+    · right; rfl
+    · right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
 
-/-- feedToken frame behavior: either preserves frame, shrinks via popScope, or sets error.
+/-- feedToken hyps behavior: either preserves frame.hyps, shrinks via popScope, grows via
+    insertHyp, or sets error.
 
     Analysis of feedToken branches (Verify.lean:693-749):
-    - .comment: Returns s unchanged or { s with tokp := p } → frame preserved
-    - .start + "${": pushScope only modifies scopes, NOT frame → frame preserved
+    - .comment: Returns s unchanged or { s with tokp := p } → hyps preserved
+    - .start + "${": pushScope only modifies scopes, NOT frame → hyps preserved
     - .start + "$}": popScope shrinks frame OR sets error (can't pop global)
-    - .start + "$c/$v/$d": Modify tokp only → frame preserved
-    - .start + label: s.label modifies tokp only → frame preserved
-    - .const/.var: s.sym inserts to objects → frame preserved
-    - .djvars: withDB/withDJ modify dj, not hyps → frame preserved (dj is in frame but hyps unchanged)
-    - .math: feedTokens or withMath → preserves frame or sets error
-    - .label: Sets .math tokp → frame preserved
-    - .proof: finishProof/feedProof → preserves frame or sets error
+    - .start + "$c/$v/$d": Modify tokp only → hyps preserved
+    - .start + label: s.label modifies tokp only → hyps preserved
+    - .const/.var: s.sym inserts to objects → hyps preserved
+    - .djvars: withDB/withDJ modify dj only, not hyps → hyps preserved
+    - .math: feedTokens may call insertHyp (grows hyps) or withMath (preserves) or sets error
+    - .label: Sets .math tokp → hyps preserved
+    - .proof: finishProof/feedProof → preserves hyps or sets error
 
-    The ONLY case that modifies frame.hyps is popScope ($}), which shrinks the frame. -/
+    Key insight: popScope ($}) shrinks frame.hyps, insertHyp ($f/$e) grows it.
+    The djvars case modifies frame.dj but NOT frame.hyps. -/
 theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) :
-    (s.feedToken pos tk).db.frame = s.db.frame ∨
-    -- popScope case: frame is shrunk to a previous scope size
-    (∃ n, (s.feedToken pos tk).db.frame = s.db.frame.shrink n) ∨
+    (s.feedToken pos tk).db.frame.hyps = s.db.frame.hyps ∨
+    -- popScope case: hyps is shrunk to a previous scope size
+    (∃ n, (s.feedToken pos tk).db.frame.hyps = s.db.frame.hyps.shrink n) ∨
+    -- insertHyp case: hyps grows by one element (float/ess hypothesis)
+    (∃ label, (s.feedToken pos tk).db.frame.hyps = s.db.frame.hyps.push label) ∨
     (s.feedToken pos tk).db.error = true := by
   unfold ParserState.feedToken
   -- Case on s.tokp
@@ -1122,27 +1327,27 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
         simp only [h_kw, Bool.false_eq_true, ↓reduceIte]
         -- s.label case
         cases label_frame_behavior s (s.mkPos pos) tk with
-        | inl h => left; exact h
-        | inr h => right; right; exact h
+        | inl h => left; exact congrArg Frame.hyps h
+        | inr h => right; right; right; exact h
       | true =>
         simp only [h_kw, ↓reduceIte]
         -- Match on tk[1]!.toChar: '{', '}', 'c', 'v', 'd', or other
-        -- Use split to handle the nested match
         split
         case h_1 => -- '{'
-          left; simp only [ParserState.withDB]; exact pushScope_preserves_frame s.db
+          left; simp only [ParserState.withDB]
+          exact congrArg Frame.hyps (pushScope_preserves_frame s.db)
         case h_2 => -- '}'
           simp only [ParserState.withDB]
-          cases popScope_frame_behavior (s.mkPos pos) s.db with
+          cases popScope_hyps_behavior (s.mkPos pos) s.db with
           | inl h => right; left; exact h
-          | inr h => right; right; exact h
+          | inr h => right; right; right; exact h
         case h_3 => left; rfl   -- 'c'
         case h_4 => left; rfl   -- 'v'
         case h_5 => left; rfl   -- 'd'
         case h_6 => -- other: s.label
           cases label_frame_behavior s (s.mkPos pos) tk with
-          | inl h => left; exact h
-          | inr h => right; right; exact h
+          | inl h => left; exact congrArg Frame.hyps h
+          | inr h => right; right; right; exact h
   | const =>
     simp only [h_tokp]
     cases h_comment : tk.eqArray "$(".toAscii with
@@ -1150,8 +1355,8 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
     | false =>
       simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
       cases sym_frame_behavior s (s.mkPos pos) tk .const with
-      | inl h => left; exact h
-      | inr h => right; right; exact h
+      | inl h => left; exact congrArg Frame.hyps h
+      | inr h => right; right; right; exact h
   | var =>
     simp only [h_tokp]
     cases h_comment : tk.eqArray "$(".toAscii with
@@ -1159,8 +1364,8 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
     | false =>
       simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
       cases sym_frame_behavior s (s.mkPos pos) tk .var with
-      | inl h => left; exact h
-      | inr h => right; right; exact h
+      | inl h => left; exact congrArg Frame.hyps h
+      | inr h => right; right; right; exact h
   | djvars arr =>
     simp only [h_tokp]
     cases h_comment : tk.eqArray "$(".toAscii with
@@ -1171,16 +1376,61 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
       | true => left; simp only [h_end]; rfl
       | false =>
         simp only [h_end, Bool.false_eq_true, ↓reduceIte]
-        -- withMath + djvars loop - complex but preserves frame
-        sorry -- djvars loop preserves frame (only modifies dj, not frame structure)
+        -- withMath + djvars loop preserves hyps (withDJ only modifies dj)
+        cases djvars_withMath_hyps_behavior arr s (s.mkPos pos) tk with
+        | inl h => left; exact h
+        | inr h => right; right; right; exact h
   | math arr' p =>
     simp only [h_tokp]
     cases h_comment : tk.eqArray "$(".toAscii with
     | true => left; rfl
     | false =>
       simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
-      -- feedTokens or withMath - both preserve frame or set error
-      sorry -- feedTokens/withMath preserve frame
+      -- feedTokens or withMath - feedTokens may grow hyps, withMath preserves or errors
+      cases h_delim : tk.eqArray p.k.delim with
+      | true =>
+        -- feedTokens case: may preserve, grow, or set error
+        simp only [h_delim, ↓reduceIte]
+        cases feedTokens_hyps_behavior s arr' p with
+        | inl h => left; exact h
+        | inr h =>
+          cases h with
+          | inl h => right; right; left; exact h
+          | inr h => right; right; right; exact h
+      | false =>
+        -- withMath case: either error or returns {s with tokp := ...} which preserves db
+        simp only [h_delim, Bool.false_eq_true, ↓reduceIte]
+        -- withMath either errors on toMath or calls the lambda
+        -- The lambda looks up tk in db.find? and returns either mkError or {s with tokp := ...}
+        -- In both cases: either db unchanged (hyps preserved) or error set
+        unfold ParserState.withMath
+        cases h_ok : (Verify.toMath tk).1 with
+        | false =>
+          right; right; right
+          simp only [h_ok, Bool.false_eq_true, ↓reduceIte, ParserState.mkError,
+                    Verify.DB.mkError, Verify.DB.error]; rfl
+        | true =>
+          simp only [h_ok, ↓reduceIte, Id.run, Bind.bind, bind]
+          -- The lambda either returns mkError or {s with tokp := ...}
+          -- Case on s.db.find? (Verify.toMath tk).2
+          cases h_find : s.db.find? (Verify.toMath tk).2 with
+          | none =>
+            -- Not found - mkError
+            right; right; right
+            simp only [h_find, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+          | some obj =>
+            -- Found - case on object type
+            cases obj with
+            | const _ =>
+              simp only [h_find]; left; rfl
+            | var _ =>
+              simp only [h_find]; left; rfl
+            | hyp _ _ _ =>
+              right; right; right
+              simp only [h_find, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+            | assert _ _ =>
+              right; right; right
+              simp only [h_find, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
   | label pos' lab =>
     simp only [h_tokp]
     cases h_comment : tk.eqArray "$(".toAscii with
@@ -1189,7 +1439,7 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
       simp only [h_comment, Bool.false_eq_true, ↓reduceIte]
       -- Sets tokp to .math or mkError
       cases h_kw : (tk.len == 2 && tk[0]! == '$'.toUInt8) with
-      | false => right; right; simp only [h_kw, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+      | false => right; right; right; simp only [h_kw, ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
       | true =>
         simp only [h_kw, ↓reduceIte]
         -- Match on tk[1]!.toChar: 'f', 'e', 'a', 'p', or other
@@ -1198,7 +1448,7 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
         case h_2 => left; rfl  -- 'e'
         case h_3 => left; rfl  -- 'a'
         case h_4 => left; rfl  -- 'p'
-        case h_5 => right; right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
+        case h_5 => right; right; right; simp only [ParserState.mkError, Verify.DB.mkError, Verify.DB.error]; rfl
   | proof pr =>
     simp only [h_tokp]
     cases h_comment : tk.eqArray "$(".toAscii with
@@ -1210,16 +1460,19 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
       cases h_end : tk.eqArray "$.".toAscii with
       | true =>
         simp only [h_end, ↓reduceIte]
-        -- finishProof - complex but preserves frame or sets error
-        sorry -- finishProof preserves frame
+        -- finishProof - preserves hyps or sets error
+        have h_db_eq : ({ s with tokp := default } : ParserState).db = s.db := rfl
+        cases finishProof_hyps_behavior { s with tokp := default } pr with
+        | inl h => left; simp only [h_db_eq] at h; exact h
+        | inr h => right; right; right; simp only [h_db_eq] at h; exact h
       | false =>
         simp only [h_end, Bool.false_eq_true, ↓reduceIte]
         -- feedProof on { s with tokp := default }
-        -- The db is the same, so feedProof_frame_behavior applies
+        -- feedProof_frame_behavior gives frame equality, use congrArg for hyps
         have h_db_eq : ({ s with tokp := default } : ParserState).db = s.db := rfl
         cases feedProof_frame_behavior { s with tokp := default } tk pr with
-        | inl h => left; simp only [h_db_eq] at h; exact h
-        | inr h => right; right; simp only [h_db_eq] at h; exact h
+        | inl h => left; simp only [h_db_eq] at h; exact congrArg Frame.hyps h
+        | inr h => right; right; right; simp only [h_db_eq] at h; exact h
 
 /-- Pattern: If parsing succeeds (no error), invariants were maintained -/
 theorem parsing_success_implies_invariants
