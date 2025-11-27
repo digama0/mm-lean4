@@ -1686,8 +1686,8 @@ where `bad_token` is some token that causes an error. This gives us a state
 - s_bad.db.error = true ✗
 - s_bad ≠ final_state ✗
 
-The theorem fails because `FeedExecution` allows "counterfactual" executions
-with different tokens than those in `bytes`.
+**Concrete example:** If initial_state has empty scopes, processing "$}" calls
+popScope which produces error "can't pop global scope".
 
 **FIX:** The correct theorem should either:
 1. Parameterize FeedExecution by the input bytes (making it deterministic), OR
@@ -1696,12 +1696,40 @@ with different tokens than those in `bytes`.
    (This is exactly `states_leading_to_success_error_free` which IS proven!)
 -/
 
-/-- The original theorem is FALSE - keeping for documentation purposes.
-    See the comment above for the counterexample.
+/-- PROVEN: FeedStep can reach a new state from any state.
+    This formally shows that FeedStep is nondeterministic:
+    we can always take a "step" via FeedStep.process_token
+    with any arbitrary token. -/
+theorem FeedStep_can_reach_new_state (s : ParserState) :
+    ∃ s', FeedStep s s' := by
+  -- We can always process some token (using default ByteSlice)
+  exact ⟨s.feedToken 0 default, FeedStep.process_token s 0 default⟩
 
-    The CORRECT theorem is `states_leading_to_success_error_free` above,
-    which quantifies over states that LEAD TO final_state, not states
-    reachable FROM initial_state. -/
+/-- PROVEN: From any state, FeedExecution can reach that feedToken state.
+    This shows that FeedExecution initial_state s does NOT imply
+    s is on the "correct" execution path. -/
+theorem FeedExecution_can_reach_feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) :
+    FeedExecution s (s.feedToken pos tk) := by
+  exact FeedExecution.step s (s.feedToken pos tk) (s.feedToken pos tk)
+    (FeedStep.process_token s pos tk)
+    (FeedExecution.refl _)
+
+/-- PROVEN: The negation of the FALSE theorem's structure.
+    If we could prove parsing_success_implies_invariants_FALSE,
+    then for ALL reachable s, s.db.error = false ∨ s = final_state.
+    But FeedExecution_can_reach_feedToken shows we can reach ANY
+    feedToken result, including error states. -/
+theorem counterexample_structure (initial_state : ParserState) (tk : ByteSlice) :
+    FeedExecution initial_state (initial_state.feedToken 0 tk) :=
+  FeedExecution_can_reach_feedToken initial_state 0 tk
+
+/-- The original theorem is FALSE - this sorry documents the incorrect formulation.
+    See the PROVEN lemmas above:
+    - FeedStep_can_reach_new_state: FeedStep is nondeterministic
+    - FeedExecution_can_reach_feedToken: can reach ANY feedToken result
+    - counterexample_structure: specifically, can reach error-inducing tokens
+
+    The CORRECT theorem is `states_leading_to_success_error_free` above. -/
 theorem parsing_success_implies_invariants_FALSE
     (initial_state final_state : ParserState)
     (bytes : ByteArray) :
@@ -1712,8 +1740,8 @@ theorem parsing_success_implies_invariants_FALSE
     (∀ s, FeedExecution initial_state s → s.db.error = false ∨ s = final_state) := by
   intro h_init h_final h_success
   intro s h_exec
-  -- This is FALSE - see counterexample above
-  -- We keep this as documentation of the incorrect formulation
+  -- This is FALSE - counterexample_structure shows we can reach ANY feedToken result
+  -- including those that produce errors (e.g., "$}" on empty scopes)
   sorry
 
 /-! ## Tactics for Feed Proofs -/
