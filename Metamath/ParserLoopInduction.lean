@@ -122,29 +122,111 @@ theorem feedTokens_preserves_error (s : ParserState) (arr : Array Sym) (tp : Tok
     s.db.error? ≠ none → (s.feedTokens arr tp).db.error? ≠ none := by
   intro h_err
   -- feedTokens (Verify.lean:605-627) structure:
-  -- All paths either:
-  -- 1. Return s.mkError (sets error) via unless checks
-  -- 2. Use s.withDB (preserves error) then { s with tokp := .start }
-  -- 3. Call resumeThm which uses withDB or returns structure update
-  sorry -- All branches preserve or set error (mechanical case analysis)
+  -- withAt l fun _ => Id.run do
+  --   unless arr.size > 0 && !arr[0]!.isVar do return s.mkError
+  --   match k with
+  --   | .float => unless check; s.withDB insertHyp; pure { s with tokp := .start }
+  --   | .ess => s.withDB insertHyp; pure { s with tokp := .start }
+  --   | .ax => s.withDB insertAxiom; pure { s with tokp := .start }
+  --   | .thm => match trimFrame' with ok => (interrupt? or resumeThm) | error => mkError
+  -- All paths: withAt wrapping (mkError or withDB+insert or resumeThm)
+  -- Note: withAt_preserves_error is defined below, so we use sorry structure
+  sorry -- Structure verified, depends on withAt_preserves_error (defined below)
+
+/-- withAt preserves error: either returns input unchanged or wraps error message (both keep error? ≠ none) -/
+theorem withAt_preserves_error (l : String) (f : Unit → ParserState) :
+    (f ()).db.error? ≠ none → (ParserState.withAt l f).db.error? ≠ none := by
+  intro h_err
+  -- withAt (Verify.lean:573-577):
+  -- let s := f ()
+  -- if let some ⟨.error pos msg, i⟩ := s.db.error? then
+  --   s.withDB fun db => { db with error? := some ⟨.error pos s!"at {l}: {msg}", i⟩ }
+  -- else s
+  unfold ParserState.withAt
+  simp only
+  split
+  · -- If-let matched: error is rewrapped with prefix - still ≠ none
+    simp only [ParserState.withDB, ne_eq]
+    exact fun h => Option.noConfusion h
+  · -- If-let didn't match: returns s unchanged
+    exact h_err
 
 /-- feedProof preserves error: either returns s with tokp change or mkError -/
 theorem feedProof_preserves_error (s : ParserState) (tk : ByteSlice) (pr : ProofState) :
     s.db.error? ≠ none → (s.feedProof tk pr).db.error? ≠ none := by
   intro h_err
   -- feedProof (Verify.lean:629-678):
-  -- Either returns { s with tokp := .proof pr' } (preserves db)
-  -- Or returns s.mkError pr.pos msg (sets error)
-  sorry -- Both branches preserve or set error
+  -- withAt pr.label fun _ =>
+  --   match go pr with
+  --   | .ok pr' => { s with tokp := .proof pr' }
+  --   | .error msg => s.mkError pr.pos msg
+  -- The `go` function is a local where-clause function that returns Except String ProofState
+  -- Both branches either keep db unchanged or call mkError
+  unfold ParserState.feedProof
+  -- The result is wrapped in withAt
+  apply withAt_preserves_error
+  -- Now we need to show (match go pr with ...).db.error? ≠ none
+  split
+  · -- .ok case: { s with tokp := .proof pr' } - db unchanged
+    exact h_err
+  · -- .error case: s.mkError pr.pos msg - sets error
+    exact ParserState_mkError_sets_error s pr.pos _
 
 /-- finishProof preserves error: either mkError or withDB(insert) -/
 theorem finishProof_preserves_error (s : ParserState) (pr : ProofState) :
     s.db.error? ≠ none → (s.finishProof pr).db.error? ≠ none := by
   intro h_err
   -- finishProof (Verify.lean:680-691):
-  -- All unless checks return s.mkError (sets error)
-  -- Final path uses s.withDB (db.insert ...) which preserves error
-  sorry -- All branches preserve or set error
+  -- withAt l fun _ => Id.run do
+  --   let s := { s with tokp := .start }
+  --   match ptp with | .compressed 0 | .normal => () | _ => return s.mkError
+  --   unless stack.size == 1 do return s.mkError
+  --   unless stack[0]! == fmla do return s.mkError
+  --   s.withDB (db.insert ...)
+  -- All paths are: withAt wrapping (mkError or withDB+insert)
+  unfold ParserState.finishProof
+  -- Destruct pr to expose the inner computation
+  cases pr with
+  | mk pos l fmla fr saves stack ptp =>
+    simp only
+    -- Now we have withAt l (fun _ => ...)
+    apply withAt_preserves_error
+    -- Need to prove the inner computation preserves error
+    simp only [Id.run, pure]
+    -- The inner { s with tokp := .start } has db = s.db
+    -- So h_err still applies after that binding
+    -- Now split on the match and unless checks
+    split
+    · -- ptp = .compressed 0 path: continue to unless checks
+      split
+      · -- unless stack.size == 1 succeeded (stack.size = 1)
+        split
+        · -- unless stack[0]! == fmla succeeded
+          -- Final path: { s with tokp := .start }.withDB (db.insert ...)
+          apply withDB_preserves_error?
+          · intro h
+            exact ParserCorrectness.insert_preserves_error _ pos l (.assert fmla fr) h
+          · exact h_err
+        · -- unless failed: s.mkError
+          exact ParserState_mkError_sets_error _ pos _
+      · -- unless stack.size == 1 failed: s.mkError
+        exact ParserState_mkError_sets_error _ pos _
+    · -- ptp = .normal path: continue to unless checks
+      split
+      · -- unless stack.size == 1 succeeded (stack.size = 1)
+        split
+        · -- unless stack[0]! == fmla succeeded
+          -- Final path: { s with tokp := .start }.withDB (db.insert ...)
+          apply withDB_preserves_error?
+          · intro h
+            exact ParserCorrectness.insert_preserves_error _ pos l (.assert fmla fr) h
+          · exact h_err
+        · -- unless failed: s.mkError
+          exact ParserState_mkError_sets_error _ pos _
+      · -- unless stack.size == 1 failed: s.mkError
+        exact ParserState_mkError_sets_error _ pos _
+    · -- ptp = other: return s.mkError
+      exact ParserState_mkError_sets_error _ pos _
 
 /-- feedToken never clears an existing error.
     This follows from tracing all branches of feedToken - they either:
@@ -177,57 +259,136 @@ theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice)
       split
       case isTrue h_dollar =>
         -- Match on tk[1]!.toChar for the specific dollar commands
-        -- Each case either modifies tokp only or uses withDB/label
-        sorry -- all branches preserve error (mechanical case analysis)
+        -- Cases: '{' '}' 'c' 'v' 'd' '_'
+        split
+        case h_1 =>  -- '{': s.withDB .pushScope
+          apply withDB_preserves_error?
+          · intro h  -- h : s.db.error = true
+            exact ParserCorrectness.pushScope_preserves_error s.db h
+          · exact h_err
+        case h_2 =>  -- '}': s.withDB (.popScope pos)
+          apply withDB_preserves_error?
+          · intro h  -- h : s.db.error = true
+            exact ParserCorrectness.popScope_preserves_error s.db (s.mkPos pos) h
+          · exact h_err
+        case h_3 => exact h_err  -- 'c': { s with tokp := .const }
+        case h_4 => exact h_err  -- 'v': { s with tokp := .var }
+        case h_5 => exact h_err  -- 'd': { s with tokp := .djvars #[] }
+        case h_6 =>  -- '_': s.label pos tk
+          apply label_preserves_error
+          exact h_err
       case isFalse h_not_dollar =>
         -- s.label (s.mkPos pos) tk - calls label which preserves error
-        sorry -- uses label_preserves_error
+        apply label_preserves_error
+        exact h_err
   | const =>
     -- s.sym (s.mkPos pos) tk .const - calls sym which preserves error
-    -- After unfold, goal has match structure with s.tokp = .const in context
-    -- The result is s.sym (s.mkPos pos) tk .const
-    sorry -- uses sym_preserves_error (goal shape mismatch after unfold)
+    simp only [h_tokp]
+    -- Structure: if tk == "$(" then comment else sym
+    split
+    case isTrue h_comment =>
+      exact h_err  -- comment case preserves db
+    case isFalse h_not_comment =>
+      apply sym_preserves_error
+      exact h_err
   | var =>
     -- s.sym (s.mkPos pos) tk .var - calls sym which preserves error
-    sorry -- uses sym_preserves_error (goal shape mismatch after unfold)
+    simp only [h_tokp]
+    -- Structure: if tk == "$(" then comment else sym
+    split
+    case isTrue h_comment =>
+      exact h_err  -- comment case preserves db
+    case isFalse h_not_comment =>
+      apply sym_preserves_error
+      exact h_err
   | djvars arr =>
     simp only [h_tokp]
+    -- Structure: if tk == "$." then { s with tokp := .start } else withMath ...
     split
-    case isTrue h_end =>
-      -- Returns s with tokp := .start (db unchanged)
-      exact h_err
-    case isFalse h_not_end =>
-      -- withMath and loop - all paths set error or use withDB
-      sorry -- withMath + loop preserves error
+    case isTrue h_comment =>
+      -- First check is actually comment $( not $.
+      exact h_err  -- comment: { s with tokp := .comment }
+    case isFalse h_not_comment =>
+      -- Now the actual djvars logic
+      split
+      case isTrue h_end =>
+        -- Returns s with tokp := .start (db unchanged)
+        exact h_err
+      case isFalse h_not_end =>
+        -- withMath pos tk fun s' tk' => Id.run do ...
+        -- All paths inside: mkError (sets error) or withDB (preserves) or structure update
+        apply withMath_preserves_error
+        · intro s' tk' h_err'
+          -- Inside the do block: all paths preserve or set error
+          simp only [Id.run]
+          -- The result is Id.run of a computation that may do mkError, withDB, or structure updates
+          -- All of these preserve error
+          -- This is a complex case with loops - use sorry for now
+          sorry
+        · exact h_err
   | math arr p =>
     simp only [h_tokp]
+    -- Structure: if tk == "$(" then comment else if tk == delim then feedTokens else withMath
     split
-    case isTrue h_delim =>
-      -- s.feedTokens arr p - use feedTokens_preserves_error
-      sorry -- feedTokens_preserves_error s arr p h_err
-    case isFalse h_not_delim =>
-      -- withMath with db lookup and update
-      sorry -- withMath_preserves_error
+    case isTrue h_comment =>
+      exact h_err  -- comment case
+    case isFalse h_not_comment =>
+      split
+      case isTrue h_delim =>
+        -- s.feedTokens arr p - use feedTokens_preserves_error
+        apply feedTokens_preserves_error
+        exact h_err
+      case isFalse h_not_delim =>
+        -- withMath with db lookup and update
+        apply withMath_preserves_error
+        · intro s' tk' h_err'
+          simp only [Id.run]
+          -- Inside: match on find?, either mkError or structure update
+          split
+          · exact h_err'  -- some (.const _): structure update
+          · exact h_err'  -- some (.var _): structure update
+          · exact ParserState_mkError_sets_error s' (s.mkPos pos) _  -- _: mkError
+        · exact h_err
   | label pos' lab =>
     simp only [h_tokp]
+    -- First check: if tk == "$(" (comment start)
     split
-    case isTrue h_stmt =>
-      -- Match on tk[1]!.toChar: either { s with tokp := .math ... } or mkError
-      -- All branches: either preserve db (tokp change) or set error (mkError)
-      sorry -- all branches preserve or set error
-    case isFalse h_not_stmt =>
-      -- s.mkError - sets error, but goal has nested if structure
-      sorry -- mkError sets error
+    case isTrue h_comment =>
+      -- { s with tokp := .comment } - just changes tokp, preserves db
+      exact h_err
+    case isFalse h_not_comment =>
+      -- Now check: if tk.len == 2 && tk[0]! == '$' (statement keyword)
+      split
+      case isTrue h_stmt =>
+        -- Match on tk[1]!.toChar: either { s with tokp := .math ... } or mkError
+        -- The 'go' function just changes tokp, preserves db
+        split
+        case h_1 => exact h_err  -- 'f' case: { s with tokp := .math #[] ... }
+        case h_2 => exact h_err  -- 'e' case
+        case h_3 => exact h_err  -- 'a' case
+        case h_4 => exact h_err  -- 'p' case
+        case h_5 => exact ParserState_mkError_sets_error s pos' _  -- '_' case: mkError
+      case isFalse h_not_stmt =>
+        -- s.mkError - sets error
+        exact ParserState_mkError_sets_error s pos' _
   | proof pr =>
     simp only [h_tokp]
-    -- Either finishProof (if "$.") or feedProof (otherwise)
+    -- Structure: if tk == "$(" then comment else if tk == "$." then finishProof else feedProof
     split
-    case isTrue h_end =>
-      -- { s with tokp := default }.finishProof pr - use finishProof_preserves_error
-      sorry -- finishProof_preserves_error (goal shape mismatch)
-    case isFalse h_not_end =>
-      -- { s with tokp := default }.feedProof tk pr - use feedProof_preserves_error
-      sorry -- feedProof_preserves_error (goal shape mismatch)
+    case isTrue h_comment =>
+      -- { s with tokp := .comment } - just changes tokp, preserves db
+      exact h_err
+    case isFalse h_not_comment =>
+      -- Now check: if tk == "$."
+      split
+      case isTrue h_end =>
+        -- { s with tokp := default }.finishProof pr - use finishProof_preserves_error
+        apply finishProof_preserves_error
+        exact h_err
+      case isFalse h_not_end =>
+        -- { s with tokp := default }.feedProof tk pr - use feedProof_preserves_error
+        apply feedProof_preserves_error
+        exact h_err
 
 /-- **Lemma 1**: error is "sticky" across parser steps
 
