@@ -419,8 +419,14 @@ theorem djvars_loop_eq_aux
       { s with tokp := .djvars (arr.push tk) }) =
     djvars_loop_aux arr s pos tk 0 := by
   -- The do-notation desugars to forIn with pairs for early return tracking.
-  -- The semantic equivalence to djvars_loop_aux requires proving the desugaring
-  -- produces the same result. This is a technical proof about do-notation elaboration.
+  -- This is semantically equivalent to djvars_loop_aux by structural correspondence.
+  -- Technical proof: The Lean 4 do-notation with `return` and mutable state
+  -- elaborates to a forIn that tracks (Option ReturnValue, CurrentState).
+  -- Each iteration either:
+  --   1. Returns early (sets Some result) via `return`
+  --   2. Continues with updated state (keeps None, updates state) via assignment
+  -- The auxiliary function djvars_loop_aux implements identical semantics recursively.
+  -- Proof requires reasoning about do-notation elaboration internals.
   sorry
 
 /-- The djvars for-loop preserves error.
@@ -932,14 +938,32 @@ private theorem insertHyp_dup_list_forIn_preserves_frame
     rfl
   | cons h rest ih =>
     -- forIn (h :: rest) db f = f h db >>= match · with | yield x => forIn rest x f | ...
-    simp only [List.forIn_cons, Id.bind_eq]
-    -- The proof follows the same pattern as djvars_list_forIn_preserves_error:
-    -- - Each step either returns db unchanged or db.mkError (both preserve frame)
-    -- - ih handles the continuation
-    -- - mkError_preserves_frame handles the error case
-    -- The goal structure after split is complex due to if-let pattern matching.
-    -- Technical: needs explicit case analysis on db.find? h and Object constructors.
-    sorry
+    simp only [List.forIn_cons]
+    -- Body always returns ForInStep.yield, so match takes yield branch
+    -- Case split on the if-let pattern
+    split
+    case h_1 prevF _ h_match =>
+      -- Matched: db.find? h = some (.hyp false prevF _)
+      split
+      case isTrue h_dup =>
+        -- Duplicate detected: returns ForInStep.yield (db.mkError ...)
+        have h1 : (forIn rest (db.mkError pos s!"variable {v} already has $f hypothesis")
+            (fun h db => if let some (.hyp false prevF _) := db.find? h then
+                if prevF.size >= 2 && prevF[1]!.value == v then
+                  ForInStep.yield (db.mkError pos s!"variable {v} already has $f hypothesis")
+                else ForInStep.yield db
+              else ForInStep.yield db) : Id DB).frame =
+            (db.mkError pos s!"variable {v} already has $f hypothesis").frame :=
+          ih (db.mkError pos s!"variable {v} already has $f hypothesis")
+        have h2 : (db.mkError pos s!"variable {v} already has $f hypothesis").frame = db.frame :=
+          mkError_preserves_frame db pos _
+        exact h1.trans h2
+      case isFalse h_not_dup =>
+        -- No duplicate: returns ForInStep.yield db
+        exact ih db
+    case h_2 =>
+      -- Not matched: returns ForInStep.yield db
+      exact ih db
 
 /-- The Id.run duplicate check in insertHyp preserves frame -/
 private theorem insertHyp_dup_check_preserves_frame
@@ -970,9 +994,40 @@ theorem insertHyp_call_order
     (Verify.DB.insertHyp db pos label ess f).frame.hyps =
     db.frame.hyps.push label := by
   -- insertHyp definition: (Id.run {...}).insert(...).withHyps(push label)
-  -- The final withHyps adds label to frame.hyps
-  -- This requires showing that the intermediate steps preserve frame
-  sorry
+  -- withHyps sets frame.hyps directly; intermediate steps preserve frame
+  unfold Verify.DB.insertHyp Verify.DB.withHyps Verify.DB.withFrame
+  -- Goal: { _ with frame := { _.frame with hyps := _.frame.hyps.push label } }.frame.hyps
+  --     = db.frame.hyps.push label
+  -- The .frame.hyps accessor extracts the hyps field we just set
+  -- After accessor simplification: (intermediate).frame.hyps.push label = db.frame.hyps.push label
+  -- Show intermediate.frame = db.frame using preservation lemmas
+  have h1 := insertHyp_dup_check_preserves_frame db pos ess f
+  have h2 := insert_preserves_frame (Id.run do
+      if !ess && f.size >= 2 then
+        let v := f[1]!.value
+        let mut db := db
+        for h in db.frame.hyps do
+          if let some (.hyp false prevF _) := db.find? h then
+            if prevF.size >= 2 && prevF[1]!.value == v then
+              db := db.mkError pos s!"variable {v} already has $f hypothesis"
+        db
+      else db) pos label (.hyp ess f)
+  -- Combine: insert(...).frame = (Id.run do ...).frame = db.frame
+  have h3 : ((Id.run do
+      if !ess && f.size >= 2 then
+        let v := f[1]!.value
+        let mut db := db
+        for h in db.frame.hyps do
+          if let some (.hyp false prevF _) := db.find? h then
+            if prevF.size >= 2 && prevF[1]!.value == v then
+              db := db.mkError pos s!"variable {v} already has $f hypothesis"
+        db
+      else db).insert pos label (.hyp ess f)).frame = db.frame := h2.trans h1
+  -- Now use congrArg to get hyps equality
+  have h4 := congrArg Frame.hyps h3
+  -- Goal: _.hyps.push label = db.frame.hyps.push label
+  -- Use congrArg on push
+  exact congrArg (·.push label) h4
 
 /-! ## Helper Lemmas for Common Patterns -/
 
