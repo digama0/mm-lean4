@@ -117,6 +117,35 @@ theorem sym_preserves_error (s : ParserState) (pos : Pos) (tk : ByteSlice) (obj 
       · exact h_err'
     · exact h_err
 
+/-- feedTokens preserves error: all paths either set error or use withDB with error-preserving ops -/
+theorem feedTokens_preserves_error (s : ParserState) (arr : Array Sym) (tp : TokensParser) :
+    s.db.error? ≠ none → (s.feedTokens arr tp).db.error? ≠ none := by
+  intro h_err
+  -- feedTokens (Verify.lean:605-627) structure:
+  -- All paths either:
+  -- 1. Return s.mkError (sets error) via unless checks
+  -- 2. Use s.withDB (preserves error) then { s with tokp := .start }
+  -- 3. Call resumeThm which uses withDB or returns structure update
+  sorry -- All branches preserve or set error (mechanical case analysis)
+
+/-- feedProof preserves error: either returns s with tokp change or mkError -/
+theorem feedProof_preserves_error (s : ParserState) (tk : ByteSlice) (pr : ProofState) :
+    s.db.error? ≠ none → (s.feedProof tk pr).db.error? ≠ none := by
+  intro h_err
+  -- feedProof (Verify.lean:629-678):
+  -- Either returns { s with tokp := .proof pr' } (preserves db)
+  -- Or returns s.mkError pr.pos msg (sets error)
+  sorry -- Both branches preserve or set error
+
+/-- finishProof preserves error: either mkError or withDB(insert) -/
+theorem finishProof_preserves_error (s : ParserState) (pr : ProofState) :
+    s.db.error? ≠ none → (s.finishProof pr).db.error? ≠ none := by
+  intro h_err
+  -- finishProof (Verify.lean:680-691):
+  -- All unless checks return s.mkError (sets error)
+  -- Final path uses s.withDB (db.insert ...) which preserves error
+  sorry -- All branches preserve or set error
+
 /-- feedToken never clears an existing error.
     This follows from tracing all branches of feedToken - they either:
     1. Return s unchanged (comments)
@@ -155,10 +184,12 @@ theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice)
         sorry -- uses label_preserves_error
   | const =>
     -- s.sym (s.mkPos pos) tk .const - calls sym which preserves error
-    sorry -- uses sym_preserves_error
+    -- After unfold, goal has match structure with s.tokp = .const in context
+    -- The result is s.sym (s.mkPos pos) tk .const
+    sorry -- uses sym_preserves_error (goal shape mismatch after unfold)
   | var =>
     -- s.sym (s.mkPos pos) tk .var - calls sym which preserves error
-    sorry -- uses sym_preserves_error
+    sorry -- uses sym_preserves_error (goal shape mismatch after unfold)
   | djvars arr =>
     simp only [h_tokp]
     split
@@ -166,24 +197,37 @@ theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice)
       -- Returns s with tokp := .start (db unchanged)
       exact h_err
     case isFalse h_not_end =>
-      sorry -- withMath and loop preserve error
+      -- withMath and loop - all paths set error or use withDB
+      sorry -- withMath + loop preserves error
   | math arr p =>
     simp only [h_tokp]
     split
     case isTrue h_delim =>
-      sorry -- feedTokens preserves error
+      -- s.feedTokens arr p - use feedTokens_preserves_error
+      sorry -- feedTokens_preserves_error s arr p h_err
     case isFalse h_not_delim =>
-      sorry -- withMath preserves error
+      -- withMath with db lookup and update
+      sorry -- withMath_preserves_error
   | label pos' lab =>
     simp only [h_tokp]
     split
     case isTrue h_stmt =>
-      sorry -- mkError or tokp change
+      -- Match on tk[1]!.toChar: either { s with tokp := .math ... } or mkError
+      -- All branches: either preserve db (tokp change) or set error (mkError)
+      sorry -- all branches preserve or set error
     case isFalse h_not_stmt =>
-      sorry -- mkError
+      -- s.mkError - sets error, but goal has nested if structure
+      sorry -- mkError sets error
   | proof pr =>
     simp only [h_tokp]
-    sorry -- finishProof or feedProof
+    -- Either finishProof (if "$.") or feedProof (otherwise)
+    split
+    case isTrue h_end =>
+      -- { s with tokp := default }.finishProof pr - use finishProof_preserves_error
+      sorry -- finishProof_preserves_error (goal shape mismatch)
+    case isFalse h_not_end =>
+      -- { s with tokp := default }.feedProof tk pr - use feedProof_preserves_error
+      sorry -- feedProof_preserves_error (goal shape mismatch)
 
 /-- **Lemma 1**: error is "sticky" across parser steps
 
