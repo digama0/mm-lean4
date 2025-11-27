@@ -16,8 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Help
 
-- Consult how-to-lean.md when needing help with Lean formalizations.
-- Upgrade how-to-lean.md when learning something new.
+- Consult **how-to-lean-batteries.md** when needing help with Lean formalizations (batteries-only, no mathlib).
+- Upgrade how-to-lean-batteries.md when learning something new.
+- Legacy: how-to-lean.md (kept for compatibility)
 
 
 ## Build & Test Commands
@@ -44,6 +45,14 @@ lean /path/to/file.lean
 lake build validateDB
 ./.lake/build/bin/validateDB
 ```
+
+### Run verification tests
+```bash
+lake build testParserInvariants
+./.lake/build/bin/testParserInvariants
+```
+
+**What are verification tests?** Executable tests that check whether the implementation maintains the properties we're formally proving. See [Verification Testing in how-to-lean-batteries.md](how-to-lean-batteries.md#verification-testing) for details.
 
 ### View build warnings/errors
 ```bash

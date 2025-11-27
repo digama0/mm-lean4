@@ -7,10 +7,6 @@ package «mm-lean4» where
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.24.0"
 
--- ATP automation (Batteries-only compatible!)
-require auto from git
-  "https://github.com/leanprover-community/lean-auto" @ "main"
-
 @[default_target]
 lean_lib Metamath where
   -- Active modules (all compile cleanly):
@@ -35,7 +31,8 @@ lean_lib Metamath where
   -- ParserOperations: Parser operations as StructurePreservingOps
   -- AutoTest: ATP automation test cases
   -- ZipperTest: Zipperposition integration test
-  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError, `Metamath.ParserInvariantsStep1, `Metamath.ParserOperations, `Metamath.AutoTest, `Metamath.ZipperTest]
+  -- Tests.ParserInvariantTests: Executable verification tests
+  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError, `Metamath.ParserInvariantsStep1, `Metamath.ParserOperations, `Metamath.AutoTest, `Metamath.ZipperTest, `Metamath.Tests.ParserInvariantTests]
 
 @[default_target]
 lean_lib MetamathExperimental where
@@ -47,4 +44,8 @@ lean_exe «mm-lean4» where
 
 lean_exe validateDB where
   root := `Metamath.ValidateDB
+  supportInterpreter := true
+
+lean_exe testParserInvariants where
+  root := `Metamath.Tests.ParserInvariantTests
   supportInterpreter := true

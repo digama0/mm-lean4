@@ -1,0 +1,238 @@
+APPENDIX E. METAMATH LANGUAGE EBNF
+
+/* A block. You can have 0 statements in a block. */
+block ::= ’${’ stmt* ’$}’
+/* Variable symbols declaration. */
+variable-stmt ::= ’$v’ variable+ ’$.’
+/* Disjoint variables. Simple disjoint statements have
+2 variables, i.e., "variable*" is empty for them. */
+disjoint-stmt ::= ’$d’ variable variable variable* ’$.’
+hypothesis-stmt ::= floating-stmt | essential-stmt
+/* Floating (variable-type) hypothesis. */
+floating-stmt ::= LABEL ’$f’ typecode variable ’$.’
+/* Essential (logical) hypothesis. */
+essential-stmt ::= LABEL ’$e’ typecode MATH-SYMBOL* ’$.’
+assert-stmt ::= axiom-stmt | provable-stmt
+/* Axiomatic assertion. */
+axiom-stmt ::= LABEL ’$a’ typecode MATH-SYMBOL* ’$.’
+/* Provable assertion. */
+provable-stmt ::= LABEL ’$p’ typecode MATH-SYMBOL*
+’$=’ proof ’$.’
+/* A proof. Proofs may be interspersed by comments.
+If ’?’ is in a proof it’s an "incomplete" proof. */
+proof ::= uncompressed-proof | compressed-proof
+uncompressed-proof ::= (LABEL | ’?’)+
+compressed-proof ::= ’(’ LABEL* ’)’ COMPRESSED-PROOF-BLOCK+
+typecode ::= constant
+filename ::= MATH-SYMBOL /* No whitespace or ’$’ */
+constant ::= MATH-SYMBOL
+variable ::= MATH-SYMBOL
+A frame is a sequence of 0 or more disjoint-stmt and hypotheses-stmt
+statements (possibly interleaved with other non-assert-stmt statements)
+followed by one assert-stmt.
+
+213
+Here are the rules for lexical processing (tokenization) beyond the constant
+tokens shown above. By convention these tokenization rules have upper-case
+names. Every token is read for the longest possible length. Whitespaceseparated tokens are read sequentially; note that the separating whitespace
+and $( ... $) comments are skipped.
+If a token definition uses another token definition, the whole thing is
+considered a single token. A pattern that is only part of a full token has a
+name beginning with an underscore (“ ”). An implementation could tokenize
+many tokens as a PRINTABLE-SEQUENCE and then check if it meets the more
+specific rule shown here.
+Comments do not nest, and both $( and $) have to be surrounded by
+at least one whitespace character ( WHITECHAR). Technically comments end
+without consuming the trailing WHITECHAR, but the trailing WHITECHAR
+gets ignored anyway so we ignore that detail here. Metamath language
+processors are not required to support $) followed immediately by a bare
+end-of-file, because the closing comment symbol is supposed to be followed
+by a WHITECHAR such as a newline.
+PRINTABLE-SEQUENCE ::= _PRINTABLE-CHARACTER+
+MATH-SYMBOL ::= (_PRINTABLE-CHARACTER - ’$’)+
+/* ASCII non-whitespace printable characters */
+_PRINTABLE-CHARACTER ::= [#x21-#x7e]
+LABEL ::= ( _LETTER-OR-DIGIT | ’.’ | ’-’ | ’_’ )+
+_LETTER-OR-DIGIT ::= [A-Za-z0-9]
+COMPRESSED-PROOF-BLOCK ::= ([A-Z] | ’?’)+
+/* Define whitespace between tokens. The -> SKIP
+means that when whitespace is seen, it is
+skipped and we simply read again. */
+WHITESPACE ::= (_WHITECHAR+ | _COMMENT) -> SKIP
+/* Comments. $( ... $) and do not nest. */
+_COMMENT ::= ’$(’ (_WHITECHAR+ (PRINTABLE-SEQUENCE - ’$)’)*
+_WHITECHAR+ ’$)’ _WHITECHAR
+/* Whitespace: (’ ’ | ’\t’ | ’\r’ | ’\n’ | ’\f’) */
+_WHITECHAR ::= [#x20#x09#x0d#x0a#x0c]
+
+214
+
+APPENDIX E. METAMATH LANGUAGE EBNF
+
+Bibliography
+[1] Donald J. Albers and G. L. Alexanderson, editors. Mathematical People.
+Contemporary Books, Inc., Chicago, 1985. [QA28.M37].
+[2] Alan Ross Anderson and Nuel D. Belnap. Entailment, volume 1. Princeton University Press, Princeton, 1975. [QA9.A634 1975 v.1].
+[3] John D. Barrow. Theories of Everything: The Quest for Ultimate
+Explanation. Oxford University Press, Oxford, 1991. [Q175.B225].
+[4] H. Behnke, F. Backmann, K. Fladt, and W. Süss, editors. Fundamentals
+of Mathematics, volume I. The MIT Press, Cambridge, Massachusetts,
+1974. [QA37.2.B413].
+[5] J. L. Bell and M. Machover. A Course in Mathematical Logic. NorthHolland, Amsterdam, 1977. [QA9.B3953].
+[6] Andrea Blass. The interaction between category theory and set theory.
+In John Walter Gray, editor, Mathematical Applications of Category
+Theory (Proceedings of the Special Session on Mathematical Applications
+Category Theory, 89th Annual Meeting of the American Mathematical
+Society, held in Denver, Colorado January 5–9, 1983), pages 5–29, Providence, Rhode Island, 1983. American Mathematical Society. [QA169.A47
+1983].
+[7] W. W. Bledsoe and D. W. Loveland, editors. Automated Theorem
+Proving: After 25 Years (Proceedings of the Special Session on Automatic
+Theorem Proving, 89th Annual Meeting of the American Mathematical
+Society, held in Denver, Colorado January 5–9, 1983), Providence,
+Rhode Island, 1983. American Mathematical Society. [QA76.9.A96.S64
+1983].
+[8] George S. Boolos and Richard C. Jeffrey. Computability and Logic. Cambridge University Press, Cambridge, third edition, 1989. [QA9.59.B66
+1989].
+[9] John Campbell. Programmer’s Progress. White Star Software, Box
+51623, Palo Alto, CA 94303, 1991.
+215
+
+216
+
+BIBLIOGRAPHY
+
+[10] Mario Carneiro. Conversion of HOL light proofs into metamath. CoRR,
+abs/1412.8091, 2014.
+[11] Mario Carneiro. Natural deductions in the metamath proof language.
+2014.
+[12] Shang-Ching Chou. Proving elementary geometry theorems using Wu’s
+algorithm. In W. W. Bledsoe and D. W. Loveland, editors, Automated
+Theorem Proving: After 25 Years (Proceedings of the Special Session
+on Automatic Theorem Proving, 89th Annual Meeting of the American
+Mathematical Society, held in Denver, Colorado January 5–9, 1983),
+pages 243–286, Providence, Rhode Island, 1983. American Mathematical
+Society. [QA76.9.A96.S64 1983].
+[13] Richard Courant and Herbert Robbins. Topology. In James R. Newman,
+editor, The World of Mathematics, Volume One, pages 573–590. Simon
+and Schuster, New York, 1956. [QA3.W67 1988].
+[14] Haskell B. Curry. Foundations of Mathematical Logic. Dover Publications, Inc., New York, 1977. [QA9.C976 1977].
+[15] Philip J. Davis and Reuben Hersh. The Mathematical Experience.
+Birkhäuser Boston, Boston, 1981. [QA8.4.D37 1982].
+[16] Richard de Millo, Richard Lipton, and Alan Perlis. Social processes and
+proofs of theorems and programs. In Thomas Tymoczko, editor, New
+Directions in the Philosophy of Mathematics, pages 267–285. Birkhäuser
+Boston, Inc., Boston, 1986. [QA8.6.N48 1986].
+[17] Robert E. Edwards. A Formal Background to Mathematics. SpringerVerlag, New York, 1979. [QA37.2.E38 v.1a].
+[18] Herbert B. Enderton. Elements of Set Theory. Academic Press, Inc.,
+San Diego, 1977. [QA248.E5].
+[19] R. L. Goodstein. Development of Mathematical Logic. Springer-Verlag
+New York Inc., New York, 1971. [QA9.G6554].
+[20] Michael Guillen. Bridges to Infinity. Jeremy P. Tarcher, Inc., Los
+Angeles, 1983. [QA93.G8].
+[21] Alan G. Hamilton. Logic for Mathematicians. Cambridge University
+Press, Cambridge, revised edition, 1988. [QA9.H298].
+[22] John Robert Harrison. Metatheory and reflection in theorem proving:
+A survey and critique. Technical Report CRC-053. SRI Cambridge,
+Millers Yard, Cambridge, UK, 1995. Available on the Web as http://www.cl.cam.ac.uk/users/jrh/papers/reflect.html.
+
+BIBLIOGRAPHY
+
+217
+
+[23] John Robert Harrison. Theorem proving with the real numbers. Technical Report 408, University of Cambridge Computer Laboratory, New
+Museums Site, Pembroke Street, Cambridge, CB2 3QG, UK, 1996. Author’s PhD thesis, available on the Web at http://www.cl.cam.ac.uk/users/jrh/papers/thesis.html.
+[24] Horst Herrlich and George E. Strecker. Category Theory: An Introduction. Allyn and Bacon Inc., Boston, 1973. [QA169.H567].
+[25] J. Roger Hindley and David Meredith. Principal type-schemes and
+condensed detachment. The Journal of Symbolic Logic, 55:90–105, 1990.
+[QA.J87].
+[26] Douglas R. Hofstadter. Gödel, Escher, Bach. Basic Books, Inc., New
+York, 1979. [QA9.H63 1980].
+[27] Andrzej Indrzejczak. Natural deduction, hybrid systems and modal
+logic. Trends in Logic, 30, 2010.
+[28] D. Kalish and R. Montague. On Tarski’s formalization of predicate logic
+with identity. Archiv für Mathematische Logik und Grundlagenforschung,
+7:81–101, 1965. [QA.A673].
+[29] J. A. Kalman. Condensed detachment as a rule of inference. Studia
+Logica, 42(4):443–451, 1983. [B18.P6.S933].
+[30] Morris Kline. Mathematical Thought from Ancient to Modern Times.
+Oxford University Press, New York, 1972. [QA21.K516 1990 v.3].
+[31] Morris Kline. Mathematics, The Loss of Certainty. Oxford University
+Press, New York, 1980. [QA21.K525].
+[32] Oliver Knill. Some fundamental theorems in mathematics. 2018.
+[33] Edna E. Kramer. The Nature and Growth of Modern Mathematics.
+Princeton University Press, Princeton, New Jersey, 1981. [QA93.K89
+1981].
+[34] Daniel Clemente Laboreo. Introduction to natural deduction. 2014.
+[35] Edmund Landau. Foundations of Analysis. Chelsea Publishing Company,
+New York, second edition, 1960. [QA241.L2541 1960].
+[36] Hugues Leblanc. On Meyer and Lambert’s quantificational calculus FQ.
+The Journal of Symbolic Logic, 33:275–280, 1968. [QA.J87].
+[37] Czeslaw Lejewski. On implicational definitions. Studia Logica, 8:189–208,
+1958. [B18.P6.S933].
+[38] Azriel Levy. Basic Set Theory. Dover Publications, Mineola, NY, 2002.
+
+218
+
+BIBLIOGRAPHY
+
+[39] Angelo Margaris. First Order Mathematical Logic. Blaisdell Publishing
+Company, Waltham, Massachusetts, 1967. [QA9.M327].
+[40] Adrian R. D. Mathias. A term of length 4,523,659,424,929. Synthese,
+133:75–86, 2002. [Q.S993].
+[41] Norman D. Megill. A finitely axiomatized formalization of predicate
+calculus with equality. Notre Dame Journal of Formal Logic, 36:435–453,
+1995. [QA.N914].
+[42] Norman D. Megill and Martin W. Bunder. Weaker D-complete logics.
+Journal of the IGPL, 4:215–225, 1996. Available on the Web at http://www.mpi-sb.mpg.de/igpl/Journal/V4-2/#Megill.
+[43] Elliott Mendelson. Introduction to Mathematical Logic. D. Van Nostrand
+Company, Inc., New York, second edition, 1979. [QA9.M537 1979].
+[44] C. A. Meredith. Single axioms for the systems (C,N), (C,O) and (A,N)
+of the two-valued propositional calculus. The Journal of Computing
+Systems, 3:155–164, 1953.
+[45] David Meredith. In memoriam Carew Arthur Meredith (1904-1976).
+Notre Dame Journal of Formal Logic, 18:513–516, 1977. [QA.N914].
+[46] J. Donald Monk. Substitutionless predicate logic with identity. Archiv
+für Mathematische Logik und Grundlagenforschung, 7:103–121, 1965.
+[47] A. W. Moore. The Infinite. Routledge, New York, 1989. [BD411.M59].
+[48] James R. Munkres. Topology: A First Course. Prentice-Hall, Inc.,
+Englewood Cliffs, New Jersey, 1975. [QA611.M82].
+[49] E. Z. Nemesszeghy and E. A. Nemesszeghy. On strongly creative definitions: A reply to V. F. Rickey. Logique et Analyse (N. S.), 20:111–115,
+1977. [BC.L832].
+[50] I. Németi. Algebraizations of quantifier logics, an overview. Version 11.4,
+preprint, Mathematical Institute, Budapest, 1994. A shortened version
+without proofs appeared in “Algebraizations of quantifier logics, an
+introductory overview,” Studia Logica, 50:485–569, 1991 [B18.P6.S933].
+[51] M. Pavičić. A new axiomatization of unified quantum logic. International
+Journal of Theoretical Physics, 31:1753 –1766, 1992. [QC.I626].
+[52] Roger Penrose. The Emperor’s New Mind. Oxford University Press,
+New York, 1989. [Q335.P415].
+[53] Ivars Peterson. The Mathematical Tourist. W. H. Freeman and Company,
+New York, 1988. [QA93.P475].
+
+BIBLIOGRAPHY
+
+219
+
+[54] Jeremy George Peterson. An automatic theorem prover for substitution
+and detachment systems. Notre Dame Journal of Formal Logic, 19:119–
+122, 1978. [QA.N914].
+[55] Willard Van Orman Quine. Set Theory and Its Logic. The Belknap
+Press of Harvard University Press, Cambridge, Massachusetts, revised
+edition, 1969. [QA248.Q7 1969].
+[56] J. A. Robinson. A machine-oriented logic based on the resolution
+principle. Journal of the Association for Computing Machinery, 12:23–
+41, 1965.
+[57] T. Thacher Robinson. Independence of two nice sets of axioms for the
+propositional calculus. The Journal of Symbolic Logic, 33:265–270, 1968.
+[QA.J87].
+[58] Rudy Rucker. Infinity and the Mind: The Science and Philosophy of
+the Infinite. Bantam Books, Inc., New York, 1982. [QA9.R79 1982].
+[59] Bertrand Russell. Recent work on the principles of mathematics. International Monthly, 4:84, 1901.
+[60] Bertrand Russell. Mysticism and Logic, and Other Essays. Barnes &
+Noble Books, Totowa, New Jersey, 1981. [B1649.R963.M9 1981].
+[61] Eric Schmidt. Reductions in norman megill’s axiom system for complex
+numbers. 2012.
+[62] Joseph R. Shoenfield. Mathematical Logic. Addison-Wesley Publishing
+Company, Inc., Reading, Massachusetts, 1967. [QA9.S52].
+[63] Daniel Solow. How to Read and Do Proofs: An Introduction to Mathematical Thought Process. John Wiley & Sons, New York, 1982.
+[QA9.S577].
