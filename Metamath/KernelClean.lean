@@ -2556,7 +2556,8 @@ theorem subst_correspondence
     (h_toExpr : toExprOpt f_impl = some e_spec)
     (h_wf_formula : WellFormedFormula f_impl)
     (h_match : ∀ v ∈ vars, ∃ f_v, σ_impl[v.v]? = some f_v ∧ toExpr f_v = σ_spec v)
-    (h_vars_from_var : ∀ v ∈ vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c')) :
+    (h_vars_from_var : ∀ v ∈ vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c'))
+    (h_formula_vars_in_frame : ∀ v, Verify.Sym.var v ∈ f_impl.toList.tail → Spec.Variable.mk v ∈ vars) :
   ∀ concl_impl, f_impl.subst σ_impl = Except.ok concl_impl →
     toExpr concl_impl = Spec.applySubst vars σ_spec e_spec := by
   intro concl_impl h_subst
@@ -2618,19 +2619,8 @@ theorem subst_correspondence
 
       -- Apply the flatMap-map correspondence lemma
       -- Need to show: all variables in f_impl.toList.tail are in vars
-      have h_vars_in_syms : ∀ v, Verify.Sym.var v ∈ f_impl.toList.tail → Spec.Variable.mk v ∈ vars := by
-        intro v h_v_in
-        -- This follows from the fact that e_spec = toExpr f_impl
-        -- and e_spec.syms = f_impl.toList.tail.map toSym
-        -- and vars are exactly the variables that appear in e_spec
-
-        -- Actually, this needs to be proven from the frame structure
-        -- For now, this is a reasonable assumption: the formula being substituted
-        -- only contains variables that are in the frame's var list
-
-        sorry  -- Need frame well-formedness condition
-
-      exact flatMap_toSym_correspondence f_impl.toList.tail σ_impl vars σ_spec h_match h_vars_in_syms h_vars_from_var
+      -- This is exactly h_formula_vars_in_frame!
+      exact flatMap_toSym_correspondence f_impl.toList.tail σ_impl vars σ_spec h_match h_formula_vars_in_frame h_vars_from_var
 
     -- Combine head and tail to combine typecode and syms
     -- We have: h_typecode : {c := concl_impl[0].value} = e_spec.typecode
@@ -3872,6 +3862,13 @@ theorem assert_step_ok
       have h_vars_from_var : ∀ v ∈ fr_assert.vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c') :=
         toFrame_vars_from_var db fr_impl fr_assert h_frame_wf h_fr_assert
 
+      -- Database well-formedness: assertion formulas only contain variables from their frame
+      have h_formula_vars_in_frame : ∀ v, Verify.Sym.var v ∈ f_impl.toList.tail → Spec.Variable.mk v ∈ fr_assert.vars := by
+        sorry  -- TODO: Database well-formedness lemma
+               -- This states: when db.find? label = some (.assert f fr' _),
+               -- all variables in f are in the vars extracted from fr'
+               -- This is a parser/database construction invariant
+
       -- Now extract the rest: DV checks, substitution, final state
       -- h_step currently has form: do { checkHyp; DV-loop; subst; pure } = ok pr'
       -- We've handled checkHyp, now simplify with it
@@ -3900,7 +3897,7 @@ theorem assert_step_ok
           -- Apply subst_correspondence to show toExpr concl_impl = e_conclusion
           have h_concl_eq : toExpr concl_impl = e_conclusion :=
             subst_correspondence f_impl e_assert σ_impl fr_assert.vars σ_typed.σ
-              h_expr h_formula_wf h_match h_vars_from_var concl_impl h_subst_res
+              h_expr h_formula_wf h_match h_vars_from_var h_formula_vars_in_frame concl_impl h_subst_res
 
           -- Use subst to replace pr' with the record update
           subst h_step
