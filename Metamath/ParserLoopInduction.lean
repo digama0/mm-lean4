@@ -67,6 +67,56 @@ theorem withDB_preserves_error? (s : ParserState) (f : DB → DB)
   have h_result := h_pres h_err_bool
   exact (error_iff_error?_ne_none (f s.db)).mp h_result
 
+/-- ParserState.mkError always sets an error -/
+theorem ParserState_mkError_sets_error (s : ParserState) (pos : Pos) (msg : String) :
+    (s.mkError pos msg).db.error? ≠ none := by
+  unfold ParserState.mkError DB.mkError
+  simp only [ne_eq]
+  exact fun h => Option.noConfusion h
+
+/-- label either preserves db or sets error -/
+theorem label_preserves_error (s : ParserState) (pos : Pos) (tk : ByteSlice) :
+    s.db.error? ≠ none → (s.label pos tk).db.error? ≠ none := by
+  intro h_err
+  unfold ParserState.label
+  -- let (ok, tk) := toLabel tk
+  -- if ok then { s with tokp := .label pos tk } else s.mkError pos ...
+  simp only
+  split
+  · exact h_err  -- Returns s with tokp changed, db unchanged
+  · exact ParserState_mkError_sets_error s pos _  -- Returns s.mkError
+
+/-- withMath either sets error or applies function (preserving db structure) -/
+theorem withMath_preserves_error (s : ParserState) (pos : Pos) (tk : ByteSlice)
+    (f : ParserState → String → ParserState)
+    (h_f : ∀ s' tk', s'.db.error? ≠ none → (f s' tk').db.error? ≠ none) :
+    s.db.error? ≠ none → (s.withMath pos tk f).db.error? ≠ none := by
+  intro h_err
+  unfold ParserState.withMath
+  -- let (ok, tk) := toMath tk
+  -- if !ok then s.mkError pos ... else f s tk'
+  simp only
+  split
+  · exact ParserState_mkError_sets_error s pos _  -- Returns s.mkError
+  · exact h_f s _ h_err  -- Returns f s tk'
+
+/-- sym preserves error: either returns s with tokp changed, or uses withMath+withDB -/
+theorem sym_preserves_error (s : ParserState) (pos : Pos) (tk : ByteSlice) (obj : String → Object) :
+    s.db.error? ≠ none → (s.sym pos tk obj).db.error? ≠ none := by
+  intro h_err
+  unfold ParserState.sym
+  -- if tk.eqArray "$.".toAscii then { s with tokp := .start }
+  -- else s.withMath pos tk fun s tk => s.withDB fun db => db.insert pos tk obj
+  split
+  · exact h_err  -- Returns { s with tokp := .start }, db unchanged
+  · -- Returns s.withMath ... (s.withDB (db.insert ...))
+    apply withMath_preserves_error
+    · intro s' tk' h_err'
+      apply withDB_preserves_error?
+      · exact fun h => ParserCorrectness.insert_preserves_error s'.db pos tk' obj h
+      · exact h_err'
+    · exact h_err
+
 /-- feedToken never clears an existing error.
     This follows from tracing all branches of feedToken - they either:
     1. Return s unchanged (comments)
@@ -101,14 +151,14 @@ theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice)
         -- Each case either modifies tokp only or uses withDB/label
         sorry -- all branches preserve error (mechanical case analysis)
       case isFalse h_not_dollar =>
-        -- s.label pos tk
-        sorry -- label preserves error
+        -- s.label (s.mkPos pos) tk - calls label which preserves error
+        sorry -- uses label_preserves_error
   | const =>
-    simp only [h_tokp]
-    sorry -- sym preserves error
+    -- s.sym (s.mkPos pos) tk .const - calls sym which preserves error
+    sorry -- uses sym_preserves_error
   | var =>
-    simp only [h_tokp]
-    sorry -- sym preserves error
+    -- s.sym (s.mkPos pos) tk .var - calls sym which preserves error
+    sorry -- uses sym_preserves_error
   | djvars arr =>
     simp only [h_tokp]
     split
