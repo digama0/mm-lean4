@@ -882,22 +882,76 @@ theorem mkError_preserves_frame (db : DB) (pos : Pos) (msg : String) :
 theorem insert_preserves_frame (db : DB) (pos : Pos) (l : String) (obj : String → Object) :
     (db.insert pos l obj).frame = db.frame := by
   unfold Verify.DB.insert
-  simp only [mkError_preserves_frame]
-  -- The branching structure is complex but all paths preserve frame
   -- All branches: db unchanged (rfl), mkError (frame unchanged), or { db with objects }
+  -- Use repeat split to handle all the nested if/match, then close with rfl or mkError lemma
+  repeat (first | split | rfl | simp only [mkError_preserves_frame])
+
+/-- Helper: one step of the insertHyp duplicate check preserves frame -/
+private theorem insertHyp_dup_step_preserves_frame
+    (db : DB) (pos : Pos) (v : String) (h : String) :
+    (if let some (.hyp false prevF _) := db.find? h then
+       if prevF.size >= 2 && prevF[1]!.value == v then
+         db.mkError pos s!"variable {v} already has $f hypothesis"
+       else db
+     else db).frame = db.frame := by
+  split
+  case h_1 prevF _ h_match =>
+    split
+    case isTrue h_dup =>
+      exact mkError_preserves_frame db pos _
+    case isFalse h_not_dup =>
+      rfl
+  case h_2 =>
+    rfl
+
+/-- Helper: list-based forIn for insertHyp duplicate check preserves frame -/
+private theorem insertHyp_dup_list_forIn_preserves_frame
+    (lst : List String) (db : DB) (pos : Pos) (v : String) :
+    (forIn lst db (fun h db =>
+      if let some (.hyp false prevF _) := db.find? h then
+        if prevF.size >= 2 && prevF[1]!.value == v then
+          ForInStep.yield (db.mkError pos s!"variable {v} already has $f hypothesis")
+        else
+          ForInStep.yield db
+      else
+        ForInStep.yield db
+    ) : Id DB).frame = db.frame := by
+  -- The for loop only modifies db via mkError, which preserves frame
+  -- This is structurally similar to djvars_list_forIn_preserves_error
   sorry
+
+/-- The Id.run duplicate check in insertHyp preserves frame -/
+private theorem insertHyp_dup_check_preserves_frame
+    (db : DB) (pos : Pos) (ess : Bool) (f : Formula) :
+    (Id.run do
+      if !ess && f.size >= 2 then
+        let v := f[1]!.value
+        let mut db := db
+        for h in db.frame.hyps do
+          if let some (.hyp false prevF _) := db.find? h then
+            if prevF.size >= 2 && prevF[1]!.value == v then
+              db := db.mkError pos s!"variable {v} already has $f hypothesis"
+        db
+      else db
+    ).frame = db.frame := by
+  simp only [Id.run]
+  split
+  case isTrue h =>
+    -- The for loop preserves frame via insertHyp_dup_list_forIn_preserves_frame
+    -- Convert array forIn to list forIn
+    rw [← Array.forIn_toList]
+    exact insertHyp_dup_list_forIn_preserves_frame db.frame.hyps.toList db pos (f[1]!.value)
+  case isFalse h =>
+    rfl
 
 theorem insertHyp_call_order
     (db : DB) (pos : Pos) (label : String) (ess : Bool) (f : Formula) :
     (Verify.DB.insertHyp db pos label ess f).frame.hyps =
     db.frame.hyps.push label := by
-  unfold Verify.DB.insertHyp
-  -- Structure: let db' := Id.run {...}; let db'' := db'.insert ...; db''.withHyps ...
-  -- Key insight: the first two steps preserve frame, withHyps modifies it
-  simp only [Verify.DB.withHyps, Verify.DB.withFrame]
-  -- After withHyps/withFrame unfolding, need to show the hyps field
-  -- The Id.run block and insert preserve frame, so we get db.frame.hyps.push label
-  sorry -- TODO: Show Id.run duplicate check preserves frame
+  -- insertHyp definition: (Id.run {...}).insert(...).withHyps(push label)
+  -- The final withHyps adds label to frame.hyps
+  -- This requires showing that the intermediate steps preserve frame
+  sorry
 
 /-! ## Helper Lemmas for Common Patterns -/
 
