@@ -1202,14 +1202,18 @@ theorem resumeThm_preserves_db (s : ParserState) (pos : Pos) (l : String) (fmla 
     finishProof checks proof validity and either:
     - Returns error if proof invalid (error set)
     - Inserts assertion (preserves hyps via insert_preserves_frame)
+
+    Proof sketch:
+    - finishProof uses withAt wrapper (only modifies error message)
+    - Inner do-block: let s := {s with tokp := .start}, then checks ptp, stack
+    - All error paths use mkError (sets error)
+    - Success path uses withDB (insert) which preserves frame via insert_preserves_frame
 -/
 theorem finishProof_hyps_behavior (s : ParserState) (pr : ProofState) :
     (s.finishProof pr).db.frame.hyps = s.db.frame.hyps ∨
     (s.finishProof pr).db.error = true := by
-  -- finishProof sets {s with tokp := .start} first (which preserves db)
-  -- Then checks ptp, stack.size, and stack[0]! == fmla
-  -- All paths either: set error, or call withDB (insert) which preserves frame
-  -- Complex proof structure due to do-notation with let binding
+  -- Complex do-notation elaboration with withAt wrapper
+  -- Semantic analysis shows all paths either set error or call insert (preserves frame)
   sorry
 
 /-- feedTokens hyps behavior: either preserves, grows, or sets error.
