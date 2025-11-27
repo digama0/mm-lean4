@@ -197,7 +197,10 @@ theorem feedTokens_preserves_error (s : ParserState) (arr : Array Sym) (tp : Tok
             exact h_withdb
           case isFalse h_not_interrupt =>
             -- s.resumeThm pos l arr fr - preserves error
-            sorry -- resumeThm preserves error (complex case)
+            -- resumeThm (Verify.lean:600-603) just does { s with tokp := .proof pr }
+            -- so db is unchanged
+            unfold ParserState.resumeThm
+            exact h_err
         case h_2 msg h_err' =>  -- trimFrame' = error
           exact ParserState_mkError_sets_error s pos _
     case isFalse h_bad =>
@@ -279,6 +282,104 @@ theorem finishProof_preserves_error (s : ParserState) (pr : ProofState) :
         exact ParserState_mkError_sets_error _ pos _
     · -- ptp = other: return s.mkError
       exact ParserState_mkError_sets_error _ pos _
+
+/-- Helper: One iteration of the djvars loop preserves error -/
+theorem djvars_loop_step_preserves_error
+    (s : ParserState) (pos : Pos) (tk tk1 : String)
+    (h_err : s.db.error? ≠ none) :
+    (if tk1 == tk then s.mkError pos s!"duplicate disjoint variable {tk}"
+     else let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+          s.withDB fun db => db.withDJ fun dj => dj.push p
+    ).db.error? ≠ none := by
+  split
+  case isTrue h_eq =>
+    -- Returns mkError - error is set
+    exact ParserState_mkError_sets_error s pos _
+  case isFalse h_ne =>
+    -- Returns withDB (withDJ ...) - preserves error
+    apply withDB_preserves_error?
+    · intro h
+      exact ParserCorrectness.withDJ_preserves_error s.db _ h
+    · exact h_err
+
+/-- Helper: Running the djvars loop on a list preserves error -/
+theorem djvars_loop_list_preserves_error
+    (lst : List String) (s : ParserState) (pos : Pos) (tk : String)
+    (h_err : s.db.error? ≠ none) :
+    (lst.foldl (fun s tk1 =>
+      if tk1 == tk then s.mkError pos s!"duplicate disjoint variable {tk}"
+      else let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+           s.withDB fun db => db.withDJ fun dj => dj.push p
+    ) s).db.error? ≠ none := by
+  induction lst generalizing s with
+  | nil =>
+    -- Empty list: returns s unchanged
+    exact h_err
+  | cons tk1 rest ih =>
+    -- Process tk1, then recurse
+    simp only [List.foldl_cons]
+    apply ih
+    exact djvars_loop_step_preserves_error s pos tk tk1 h_err
+
+/-- Auxiliary function that mirrors the djvars loop semantics for reasoning.
+    Returns the ParserState after processing elements from index i onwards. -/
+def djvars_loop_aux (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) (i : Nat) : ParserState :=
+  if h : i < arr.size then
+    let tk1 := arr[i]
+    if tk1 == tk then
+      s.mkError pos s!"duplicate disjoint variable {tk}"
+    else
+      let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+      let s' := s.withDB fun db => db.withDJ fun dj => dj.push p
+      djvars_loop_aux arr s' pos tk (i + 1)
+  else
+    { s with tokp := .djvars (arr.push tk) }
+termination_by arr.size - i
+
+/-- The auxiliary function preserves error -/
+theorem djvars_loop_aux_preserves_error
+    (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) (i : Nat)
+    (h_err : s.db.error? ≠ none) :
+    (djvars_loop_aux arr s pos tk i).db.error? ≠ none := by
+  unfold djvars_loop_aux
+  split
+  case isTrue h_lt =>
+    -- Process element at index i
+    -- Use if_pos/if_neg to split on the condition
+    by_cases h_eq : arr[i] == tk
+    · -- Case: arr[i] == tk, so return mkError
+      simp only [h_eq, ↓reduceIte]
+      exact ParserState_mkError_sets_error s pos _
+    · -- Case: arr[i] ≠ tk, so continue with withDB/withDJ and recurse
+      simp only [h_eq, Bool.false_eq_true, ↓reduceIte]
+      have h_step : (s.withDB fun db => db.withDJ fun dj => dj.push
+          (if arr[i] < tk then (arr[i], tk) else (tk, arr[i]))).db.error? ≠ none := by
+        apply withDB_preserves_error?
+        · intro h
+          exact ParserCorrectness.withDJ_preserves_error s.db _ h
+        · exact h_err
+      exact djvars_loop_aux_preserves_error arr _ pos tk (i + 1) h_step
+  case isFalse h_ge =>
+    -- Loop complete: { s with tokp := ... } preserves s.db
+    exact h_err
+termination_by arr.size - i
+
+theorem djvars_loop_preserves_error
+    (arr : Array String) (s : ParserState) (pos : Pos) (tk : String)
+    (h_err : s.db.error? ≠ none) :
+    (Id.run do
+      let mut s := s
+      for tk1 in arr do
+        if tk1 == tk then
+          return s.mkError pos s!"duplicate disjoint variable {tk}"
+        let p := if tk1 < tk then (tk1, tk) else (tk, tk1)
+        s := s.withDB fun db => db.withDJ fun dj => dj.push p
+      { s with tokp := .djvars (arr.push tk) }).db.error? ≠ none := by
+  -- The for-loop computes the same result as djvars_loop_aux starting at index 0
+  -- Use djvars_loop_aux_preserves_error
+  -- TODO: Need to show the for-loop equals djvars_loop_aux - this requires
+  -- reasoning about ForIn semantics which is complex
+  sorry -- Needs: for-loop = djvars_loop_aux
 
 /-- feedToken never clears an existing error.
     This follows from tracing all branches of feedToken - they either:
@@ -381,8 +482,8 @@ theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice)
           case isTrue h_isVar =>
             -- unless succeeded, continue to for loop
             -- The for loop either returns early (mkError) or completes with withDB chain
-            -- For now, use sorry as this requires loop invariant reasoning
-            sorry -- For loop preserves error via withDJ_preserves_error
+            -- Use djvars_loop_preserves_error which captures this pattern
+            exact djvars_loop_preserves_error arr s' (s.mkPos pos) tk' h_err'
           case isFalse h_not_isVar =>
             -- unless failed: s'.mkError
             exact ParserState_mkError_sets_error s' (s.mkPos pos) _
