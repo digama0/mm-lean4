@@ -3949,13 +3949,33 @@ theorem assert_step_ok
 
 theorem stepNormal_sound
   (db : Verify.DB) (pr pr' : Verify.ProofState) (label : String)
-  (Γ : Spec.Database) (fr : Spec.Frame) :
-  toDatabase db = some Γ →
-  toFrame db pr.frame = some fr →
-  Verify.DB.stepNormal db pr label = Except.ok pr' →
-  True := by  -- Minimal stub: returns True (case dispatch will come later)
-  intro _ _ _
-  trivial
+  (Γ : Spec.Database) (fr : Spec.Frame) (stack_spec : List Spec.Expr)
+  (h_inv : ProofStateInv db pr Γ fr stack_spec)
+  (h_db : toDatabase db = some Γ)
+  (h_fr : toFrame db pr.frame = some fr)
+  (h_step : Verify.DB.stepNormal db pr label = Except.ok pr') :
+  ∃ stack_new, ProofStateInv db pr' Γ fr stack_new := by
+  -- Dispatch on what db.find? label returns
+  unfold Verify.DB.stepNormal at h_step
+  cases h_find : db.find? label with
+  | none =>
+    -- stepNormal throws error, contradicts h_step = ok
+    simp [h_find] at h_step
+  | some obj =>
+    cases obj with
+    | const _ | var _ =>
+      -- stepNormal throws error for const/var, contradicts h_step = ok
+      simp [h_find] at h_step
+    | hyp ess f lbl =>
+      -- Hypothesis case: use float_step_ok or essential_step_ok
+      simp [h_find] at h_step
+      -- Need to show that hypothesis is in fr.mand and has proper conversion
+      sorry  -- TODO: Extract hypothesis membership and use float_step_ok/essential_step_ok
+    | assert f_impl fr_impl name =>
+      -- Assertion case: use assert_step_ok
+      simp [h_find] at h_step
+      -- Need well-formedness conditions for assert_step_ok
+      sorry  -- TODO: Extract conditions and use assert_step_ok
 
 /-! ## ✅ PHASE 7: Fold & main theorem (COMPLETE ARCHITECTURE) -/
 
