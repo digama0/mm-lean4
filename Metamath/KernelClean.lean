@@ -138,10 +138,16 @@ theorem substStep_var_ok_iff
   -- Now split on the HashMap lookup σ[v]?
   split
   · -- none case: error ≠ ok r
-    sorry  -- TODO: error case characterization
+    -- LHS: .error ... = .ok r is False
+    -- RHS: ∃ e_val, none = some e_val is False
+    -- Therefore False ↔ False holds
+    rename_i h_none
+    simp [h_none]
   · -- some case: ok (e.foldl ...) = ok r ↔ ∃ e_val, ...
-    rename_i e_val
-    sorry  -- TODO: some case characterization
+    -- LHS: .ok x = .ok r ↔ x = r (injectivity)
+    -- RHS: ∃ e_val, some e_val = some e_val ∧ r = x, which simplifies to r = x
+    rename_i e_val h_some
+    simp [h_some, eq_comm]
 
 /-- Array.foldl with Array.push starting from nonempty array stays nonempty.
     This is used in the variable case of substStep.
@@ -1340,13 +1346,15 @@ theorem toList_mem_implies_index (arr : Array String) (x : String) (h : x ∈ ar
     exact hi
   · -- Show arr[i]! = x
     -- We have h_eq : arr.toList.get ⟨i, hi⟩ = x
-    -- Array to list correspondence via getElem!_toList
+    -- Strategy: arr[i]! = arr[i] (by getElem!_pos) = arr.toList.get (by toList_get) = x
     have h_toList : arr.toList.length = arr.size := Array.toList_length arr
     have h_i_bound : i < arr.size := by rw [← h_toList]; exact hi
-    have h_get : arr[i]! = arr.toList[i]! := getElem!_toList arr i h_i_bound
-    rw [h_get]
-    -- Now prove: arr.toList[i]! = x
-    sorry -- TODO: connect List.get to getElem! notation
+    -- Step 1: arr[i]! = arr[i] by getElem!_pos
+    rw [getElem!_pos arr i h_i_bound]
+    -- Step 2: arr[i] = arr.toList.get ⟨i, hi⟩ by toList_get (symmetric)
+    rw [← Array.toList_get arr i h_i_bound hi]
+    -- Step 3: arr.toList.get ⟨i, hi⟩ = x by h_eq
+    exact h_eq
 
 /-- **Foundational Utility: mapM membership preservation**
 
@@ -1690,7 +1698,9 @@ theorem toFrame_vars_from_var (db : Verify.DB) (fr_impl : Verify.Frame) (fr_spec
         cases ess with
         | true =>
           -- If ess = true, convertHyp produces Hyp.essential, not Hyp.floating
-          sorry -- TODO: contradiction between essential and floating
+          -- Derive contradiction: unfold convertHyp and substitute h_find
+          unfold convertHyp at h_convertHyp
+          simp [h_find] at h_convertHyp
         | false =>
           -- ess = false, done
           rfl
@@ -2556,7 +2566,8 @@ theorem subst_correspondence
     (h_toExpr : toExprOpt f_impl = some e_spec)
     (h_wf_formula : WellFormedFormula f_impl)
     (h_match : ∀ v ∈ vars, ∃ f_v, σ_impl[v.v]? = some f_v ∧ toExpr f_v = σ_spec v)
-    (h_vars_from_var : ∀ v ∈ vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c')) :
+    (h_vars_from_var : ∀ v ∈ vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c'))
+    (h_formula_vars_in_frame : ∀ v, Verify.Sym.var v ∈ f_impl.toList.tail → Spec.Variable.mk v ∈ vars) :
   ∀ concl_impl, f_impl.subst σ_impl = Except.ok concl_impl →
     toExpr concl_impl = Spec.applySubst vars σ_spec e_spec := by
   intro concl_impl h_subst
@@ -2618,19 +2629,8 @@ theorem subst_correspondence
 
       -- Apply the flatMap-map correspondence lemma
       -- Need to show: all variables in f_impl.toList.tail are in vars
-      have h_vars_in_syms : ∀ v, Verify.Sym.var v ∈ f_impl.toList.tail → Spec.Variable.mk v ∈ vars := by
-        intro v h_v_in
-        -- This follows from the fact that e_spec = toExpr f_impl
-        -- and e_spec.syms = f_impl.toList.tail.map toSym
-        -- and vars are exactly the variables that appear in e_spec
-
-        -- Actually, this needs to be proven from the frame structure
-        -- For now, this is a reasonable assumption: the formula being substituted
-        -- only contains variables that are in the frame's var list
-
-        sorry  -- Need frame well-formedness condition
-
-      exact flatMap_toSym_correspondence f_impl.toList.tail σ_impl vars σ_spec h_match h_vars_in_syms h_vars_from_var
+      -- This is exactly h_formula_vars_in_frame!
+      exact flatMap_toSym_correspondence f_impl.toList.tail σ_impl vars σ_spec h_match h_formula_vars_in_frame h_vars_from_var
 
     -- Combine head and tail to combine typecode and syms
     -- We have: h_typecode : {c := concl_impl[0].value} = e_spec.typecode
@@ -2949,14 +2949,26 @@ theorem checkHyp_operational_general
       | none =>
           -- Contradiction: checkHyp panics when lookup fails, but we have success
           -- This case is impossible in well-formed databases
-          sorry  -- TODO: Derive False from panic = Except.ok
+          -- Derive False by unfolding checkHyp with the none result
+          have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
+          unfold Verify.DB.checkHyp at h_checkHyp
+          simp only [h_i_lt, dif_pos] at h_checkHyp
+          rw [← h_bang, h_find] at h_checkHyp
+          -- The pattern match fails, leading to unreachable!, which cannot equal Except.ok
+          simp at h_checkHyp
 
       | some obj =>
           cases obj with
           | const _ | var _ | assert _ _ _ =>
               -- Contradiction: checkHyp panics for non-hypothesis objects
               -- This case is impossible in well-formed databases
-              sorry  -- TODO: Derive False from panic = Except.ok
+              -- Derive False by unfolding checkHyp with the non-hyp object
+              have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
+              unfold Verify.DB.checkHyp at h_checkHyp
+              simp only [h_i_lt, dif_pos] at h_checkHyp
+              rw [← h_bang, h_find] at h_checkHyp
+              -- The pattern match fails for non-hyp objects, leading to unreachable!
+              simp at h_checkHyp
 
           | hyp ess f lbl =>
               -- Convert h_find from hyps[i]! to hyps[i] for equation lemmas
@@ -3872,6 +3884,13 @@ theorem assert_step_ok
       have h_vars_from_var : ∀ v ∈ fr_assert.vars, ∃ s, v = Spec.Variable.mk s ∧ ∀ c', s ≠ toSym (Verify.Sym.const c') :=
         toFrame_vars_from_var db fr_impl fr_assert h_frame_wf h_fr_assert
 
+      -- Database well-formedness: assertion formulas only contain variables from their frame
+      have h_formula_vars_in_frame : ∀ v, Verify.Sym.var v ∈ f_impl.toList.tail → Spec.Variable.mk v ∈ fr_assert.vars := by
+        sorry  -- TODO: Database well-formedness lemma
+               -- This states: when db.find? label = some (.assert f fr' _),
+               -- all variables in f are in the vars extracted from fr'
+               -- This is a parser/database construction invariant
+
       -- Now extract the rest: DV checks, substitution, final state
       -- h_step currently has form: do { checkHyp; DV-loop; subst; pure } = ok pr'
       -- We've handled checkHyp, now simplify with it
@@ -3900,7 +3919,7 @@ theorem assert_step_ok
           -- Apply subst_correspondence to show toExpr concl_impl = e_conclusion
           have h_concl_eq : toExpr concl_impl = e_conclusion :=
             subst_correspondence f_impl e_assert σ_impl fr_assert.vars σ_typed.σ
-              h_expr h_formula_wf h_match h_vars_from_var concl_impl h_subst_res
+              h_expr h_formula_wf h_match h_vars_from_var h_formula_vars_in_frame concl_impl h_subst_res
 
           -- Use subst to replace pr' with the record update
           subst h_step
@@ -3930,13 +3949,33 @@ theorem assert_step_ok
 
 theorem stepNormal_sound
   (db : Verify.DB) (pr pr' : Verify.ProofState) (label : String)
-  (Γ : Spec.Database) (fr : Spec.Frame) :
-  toDatabase db = some Γ →
-  toFrame db pr.frame = some fr →
-  Verify.DB.stepNormal db pr label = Except.ok pr' →
-  True := by  -- Minimal stub: returns True (case dispatch will come later)
-  intro _ _ _
-  trivial
+  (Γ : Spec.Database) (fr : Spec.Frame) (stack_spec : List Spec.Expr)
+  (h_inv : ProofStateInv db pr Γ fr stack_spec)
+  (h_db : toDatabase db = some Γ)
+  (h_fr : toFrame db pr.frame = some fr)
+  (h_step : Verify.DB.stepNormal db pr label = Except.ok pr') :
+  ∃ stack_new, ProofStateInv db pr' Γ fr stack_new := by
+  -- Dispatch on what db.find? label returns
+  unfold Verify.DB.stepNormal at h_step
+  cases h_find : db.find? label with
+  | none =>
+    -- stepNormal throws error, contradicts h_step = ok
+    simp [h_find] at h_step
+  | some obj =>
+    cases obj with
+    | const _ | var _ =>
+      -- stepNormal throws error for const/var, contradicts h_step = ok
+      simp [h_find] at h_step
+    | hyp ess f lbl =>
+      -- Hypothesis case: use float_step_ok or essential_step_ok
+      simp [h_find] at h_step
+      -- Need to show that hypothesis is in fr.mand and has proper conversion
+      sorry  -- TODO: Extract hypothesis membership and use float_step_ok/essential_step_ok
+    | assert f_impl fr_impl name =>
+      -- Assertion case: use assert_step_ok
+      simp [h_find] at h_step
+      -- Need well-formedness conditions for assert_step_ok
+      sorry  -- TODO: Extract conditions and use assert_step_ok
 
 /-! ## ✅ PHASE 7: Fold & main theorem (COMPLETE ARCHITECTURE) -/
 
@@ -3967,36 +4006,52 @@ theorem fold_maintains_provable
   Spec.Provable Γ fr (toExpr e_final) := by
   intro h_db h_fr h_fold h_init h_size h_final
 
-  -- Strategy: Build ProofValid incrementally as we process the proof array
-  -- Key insight: stepNormal maintains an invariant that connects implementation and spec
-
   unfold Spec.Provable
 
-  -- We need to build up the proof steps and show ProofValid
-  -- This requires induction on the array, but we can sketch the proof structure
+  -- Strategy: Use induction on the array converted to a list
+  -- We'll build ProofValid incrementally through the fold
 
-  -- The proof array produces a sequence of ProofStates
-  -- Each successful stepNormal corresponds to a valid ProofStep
-  -- The accumulation gives us ProofValid
+  -- Convert array foldlM to list foldlM for easier induction
+  have h_list_fold : proof.toList.foldlM (fun pr step => Verify.DB.stepNormal db pr step) pr_init = Except.ok pr_final := by
+    -- Array.foldlM = List.foldlM on toList
+    sorry  -- TODO: Array.foldlM_eq_list_foldlM lemma
 
-  -- For now, we construct the minimal witnesses:
-  -- - Empty steps list (would be filled by induction)
-  -- - Final stack with just toExpr e_final
-  -- - ProofValid for this configuration
+  -- Now induct on proof.toList
+  generalize h_proof_list : proof.toList = proof_list
+  rw [h_proof_list] at h_list_fold
+  clear h_proof_list  -- Work with the list now
 
-  refine ⟨[], [toExpr e_final], ?proof_valid, rfl⟩
+  -- Induction on proof_list
+  induction proof_list generalizing pr_init pr_final with
+  | nil =>
+    -- Base case: empty proof
+    -- foldlM [] pr_init = ok pr_init, so pr_final = pr_init
+    simp [List.foldlM] at h_list_fold
+    cases h_list_fold  -- pr_final = pr_init
 
-  -- Construct ProofValid Γ fr [toExpr e_final] []
-  -- This is the base case: empty proof, singleton stack
-  -- ProofValid.nil gives us ProofValid Γ fr fr.mand []
-  -- But we need ProofValid Γ fr [toExpr e_final] []
+    -- With pr_init.stack = [] and pr_final.stack.size = 1, we have a contradiction
+    -- Unless... wait, empty proof can't produce singleton stack!
+    sorry  -- This case may be impossible given the preconditions
 
-  -- The full proof requires showing:
-  -- 1. Each stepNormal preserves/extends ProofValid
-  -- 2. The final state matches our singleton requirement
-  -- 3. Array induction connects initial empty to final singleton
+  | cons label rest ih =>
+    -- Inductive case: label :: rest
+    -- foldlM (label :: rest) pr_init = foldlM rest (stepNormal pr_init label)
 
-  sorry  -- TODO: Array.foldlM induction with stepNormal_sound correspondence
+    simp only [List.foldlM_cons] at h_list_fold
+
+    -- Split on the result of stepNormal
+    cases h_step : Verify.DB.stepNormal db pr_init label with
+    | error e =>
+      -- If stepNormal fails, foldlM propagates the error - contradiction!
+      simp [h_step, Bind.bind, Except.bind] at h_list_fold
+    | ok pr_next =>
+      -- stepNormal succeeded, continue with rest
+      simp [h_step] at h_list_fold
+
+      -- Apply IH to the rest of the proof
+      -- We need to maintain ProofStateInv through the fold
+      sorry  -- TODO: Use stepNormal_sound to get invariant for pr_next
+            -- Then apply IH to rest with pr_next as new init
 
 /-! ## 🎯 MAIN SOUNDNESS THEOREM (Architecture Complete!) -/
 

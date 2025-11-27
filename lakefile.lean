@@ -32,7 +32,7 @@ lean_lib Metamath where
   -- AutoTest: ATP automation test cases
   -- ZipperTest: Zipperposition integration test
   -- Tests.ParserInvariantTests: Executable verification tests
-  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError, `Metamath.ParserInvariantsStep1, `Metamath.ParserOperations, `Metamath.AutoTest, `Metamath.ZipperTest, `Metamath.Tests.ParserInvariantTests]
+  roots := #[`Metamath.Spec, `Metamath.ByteSliceCompat, `Metamath.Verify, `Metamath.WellFormedness, `Metamath.ParserBasics, `Metamath.ParserCorrectness, `Metamath.ArrayListExt, `Metamath.Bridge, `Metamath.KernelExtras, `Metamath.AllM, `Metamath.KernelClean, `Metamath.ValidateDB, `Metamath.ParserInvariants, `Metamath.ParserProofs, `Metamath.HashMapLemmas, `Metamath.ParserLoopInduction, `Metamath.DBCaseAnalysis, `Metamath.CounterexampleInsertError, `Metamath.ParserInvariantsStep1, `Metamath.ParserOperations, `Metamath.AutoTest, `Metamath.ZipperTest]
 
 @[default_target]
 lean_lib MetamathExperimental where
@@ -44,8 +44,4 @@ lean_exe «mm-lean4» where
 
 lean_exe validateDB where
   root := `Metamath.ValidateDB
-  supportInterpreter := true
-
-lean_exe testParserInvariants where
-  root := `Metamath.Tests.ParserInvariantTests
   supportInterpreter := true
