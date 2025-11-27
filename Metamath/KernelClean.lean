@@ -1690,7 +1690,9 @@ theorem toFrame_vars_from_var (db : Verify.DB) (fr_impl : Verify.Frame) (fr_spec
         cases ess with
         | true =>
           -- If ess = true, convertHyp produces Hyp.essential, not Hyp.floating
-          sorry -- TODO: contradiction between essential and floating
+          -- Derive contradiction: unfold convertHyp and substitute h_find
+          unfold convertHyp at h_convertHyp
+          simp [h_find] at h_convertHyp
         | false =>
           -- ess = false, done
           rfl
@@ -2939,14 +2941,26 @@ theorem checkHyp_operational_general
       | none =>
           -- Contradiction: checkHyp panics when lookup fails, but we have success
           -- This case is impossible in well-formed databases
-          sorry  -- TODO: Derive False from panic = Except.ok
+          -- Derive False by unfolding checkHyp with the none result
+          have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
+          unfold Verify.DB.checkHyp at h_checkHyp
+          simp only [h_i_lt, dif_pos] at h_checkHyp
+          rw [← h_bang, h_find] at h_checkHyp
+          -- The pattern match fails, leading to unreachable!, which cannot equal Except.ok
+          simp at h_checkHyp
 
       | some obj =>
           cases obj with
           | const _ | var _ | assert _ _ _ =>
               -- Contradiction: checkHyp panics for non-hypothesis objects
               -- This case is impossible in well-formed databases
-              sorry  -- TODO: Derive False from panic = Except.ok
+              -- Derive False by unfolding checkHyp with the non-hyp object
+              have h_bang : hyps[i]! = hyps[i] := by simp [h_i_lt]
+              unfold Verify.DB.checkHyp at h_checkHyp
+              simp only [h_i_lt, dif_pos] at h_checkHyp
+              rw [← h_bang, h_find] at h_checkHyp
+              -- The pattern match fails for non-hyp objects, leading to unreachable!
+              simp at h_checkHyp
 
           | hyp ess f lbl =>
               -- Convert h_find from hyps[i]! to hyps[i] for equation lemmas
