@@ -924,9 +924,22 @@ private theorem insertHyp_dup_list_forIn_preserves_frame
       else
         ForInStep.yield db
     ) : Id DB).frame = db.frame := by
-  -- The for loop only modifies db via mkError, which preserves frame
-  -- This is structurally similar to djvars_list_forIn_preserves_error
-  sorry
+  -- Pattern from djvars_list_forIn_preserves_error, but SIMPLER:
+  -- All branches return ForInStep.yield (no early return)
+  induction lst generalizing db with
+  | nil =>
+    -- forIn [] db f = pure db
+    rfl
+  | cons h rest ih =>
+    -- forIn (h :: rest) db f = f h db >>= match · with | yield x => forIn rest x f | ...
+    simp only [List.forIn_cons, Id.bind_eq]
+    -- The proof follows the same pattern as djvars_list_forIn_preserves_error:
+    -- - Each step either returns db unchanged or db.mkError (both preserve frame)
+    -- - ih handles the continuation
+    -- - mkError_preserves_frame handles the error case
+    -- The goal structure after split is complex due to if-let pattern matching.
+    -- Technical: needs explicit case analysis on db.find? h and Object constructors.
+    sorry
 
 /-- The Id.run duplicate check in insertHyp preserves frame -/
 private theorem insertHyp_dup_check_preserves_frame
