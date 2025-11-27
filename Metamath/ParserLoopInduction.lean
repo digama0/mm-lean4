@@ -1031,11 +1031,32 @@ theorem insertHyp_call_order
 
 /-! ## Helper Lemmas for Common Patterns -/
 
-/-- feedToken preserves DB structure except for error and objects -/
-theorem feedToken_preserves_frame (s : ParserState) (pos : Nat) (tk : ByteSlice) :
+/-- feedToken frame behavior: either preserves frame, shrinks via popScope, or sets error.
+
+    Analysis of feedToken branches (Verify.lean:693-749):
+    - .comment: Returns s unchanged or { s with tokp := p } → frame preserved
+    - .start + "${": pushScope only modifies scopes, NOT frame → frame preserved
+    - .start + "$}": popScope shrinks frame OR sets error (can't pop global)
+    - .start + "$c/$v/$d": Modify tokp only → frame preserved
+    - .start + label: s.label modifies tokp only → frame preserved
+    - .const/.var: s.sym inserts to objects → frame preserved
+    - .djvars: withDB/withDJ modify dj, not hyps → frame preserved (dj is in frame but hyps unchanged)
+    - .math: feedTokens or withMath → preserves frame or sets error
+    - .label: Sets .math tokp → frame preserved
+    - .proof: finishProof/feedProof → preserves frame or sets error
+
+    The ONLY case that modifies frame.hyps is popScope ($}), which shrinks the frame. -/
+theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) :
     (s.feedToken pos tk).db.frame = s.db.frame ∨
+    -- popScope case: frame is shrunk to a previous scope size
+    (∃ n, (s.feedToken pos tk).db.frame = s.db.frame.shrink n) ∨
     (s.feedToken pos tk).db.error = true := by
-  -- By cases on what feedToken does
+  -- The proof requires exhaustive case analysis on feedToken branches.
+  -- Each branch either:
+  --   1. Preserves frame exactly (left disjunct)
+  --   2. Shrinks frame via popScope (middle disjunct)
+  --   3. Sets error (right disjunct)
+  -- This is a large case analysis but straightforward structurally.
   sorry
 
 /-- Pattern: If parsing succeeds (no error), invariants were maintained -/
