@@ -138,10 +138,16 @@ theorem substStep_var_ok_iff
   -- Now split on the HashMap lookup σ[v]?
   split
   · -- none case: error ≠ ok r
-    sorry  -- TODO: error case characterization
+    -- LHS: .error ... = .ok r is False
+    -- RHS: ∃ e_val, none = some e_val is False
+    -- Therefore False ↔ False holds
+    rename_i h_none
+    simp [h_none]
   · -- some case: ok (e.foldl ...) = ok r ↔ ∃ e_val, ...
-    rename_i e_val
-    sorry  -- TODO: some case characterization
+    -- LHS: .ok x = .ok r ↔ x = r (injectivity)
+    -- RHS: ∃ e_val, some e_val = some e_val ∧ r = x, which simplifies to r = x
+    rename_i e_val h_some
+    simp [h_some, eq_comm]
 
 /-- Array.foldl with Array.push starting from nonempty array stays nonempty.
     This is used in the variable case of substStep.
@@ -1340,13 +1346,15 @@ theorem toList_mem_implies_index (arr : Array String) (x : String) (h : x ∈ ar
     exact hi
   · -- Show arr[i]! = x
     -- We have h_eq : arr.toList.get ⟨i, hi⟩ = x
-    -- Array to list correspondence via getElem!_toList
+    -- Strategy: arr[i]! = arr[i] (by getElem!_pos) = arr.toList.get (by toList_get) = x
     have h_toList : arr.toList.length = arr.size := Array.toList_length arr
     have h_i_bound : i < arr.size := by rw [← h_toList]; exact hi
-    have h_get : arr[i]! = arr.toList[i]! := getElem!_toList arr i h_i_bound
-    rw [h_get]
-    -- Now prove: arr.toList[i]! = x
-    sorry -- TODO: connect List.get to getElem! notation
+    -- Step 1: arr[i]! = arr[i] by getElem!_pos
+    rw [getElem!_pos arr i h_i_bound]
+    -- Step 2: arr[i] = arr.toList.get ⟨i, hi⟩ by toList_get (symmetric)
+    rw [← Array.toList_get arr i h_i_bound hi]
+    -- Step 3: arr.toList.get ⟨i, hi⟩ = x by h_eq
+    exact h_eq
 
 /-- **Foundational Utility: mapM membership preservation**
 
