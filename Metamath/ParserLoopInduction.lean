@@ -1667,38 +1667,54 @@ theorem states_leading_to_success_error_free
     s.db.error = false :=
   FeedExecution.all_error_free h_exec h_success
 
-/-- Pattern: If parsing succeeds (no error), invariants were maintained.
+/-! ## Why `parsing_success_implies_invariants` is FALSE as stated
 
-    NOTE: This theorem requires "execution totality" - knowing that any state
-    reachable FROM initial_state eventually LEADS TO final_state.
+The theorem claimed:
+  ∀ s, FeedExecution initial_state s → s.db.error = false ∨ s = final_state
 
-    The direction matters:
-    - We have: FeedExecution initial_state s (s is reachable from initial)
-    - We need: FeedExecution s final_state (s leads to final)
+**COUNTEREXAMPLE:**
+The `FeedStep` relation allows ANY token to be processed:
+  | process_token (s : ParserState) (pos : Nat) (tk : ByteSlice) :
+      FeedStep s (s.feedToken pos tk)
 
-    With execution totality, apply `states_leading_to_success_error_free`.
+So even if `bytes` parses successfully to `final_state`, we can construct:
+  FeedExecution initial_state (initial_state.feedToken 0 bad_token)
 
-    Pending: Prove execution totality:
-    - feedAll_produces_execution: FeedExecution s (s.feedAll base arr)
-    - execution_linear: FeedExecution s₁ s₃ → FeedExecution s₁ s₂ →
-                        FeedExecution s₂ s₃ ∨ s₂ = s₃ ∨ FeedExecution s₃ s₂
+where `bad_token` is some token that causes an error. This gives us a state
+`s_bad` with:
+- FeedExecution initial_state s_bad ✓
+- s_bad.db.error = true ✗
+- s_bad ≠ final_state ✗
+
+The theorem fails because `FeedExecution` allows "counterfactual" executions
+with different tokens than those in `bytes`.
+
+**FIX:** The correct theorem should either:
+1. Parameterize FeedExecution by the input bytes (making it deterministic), OR
+2. Only quantify over states ON THE ACTUAL PATH to final_state:
+   ∀ s, FeedExecution s final_state → s.db.error = false
+   (This is exactly `states_leading_to_success_error_free` which IS proven!)
 -/
-theorem parsing_success_implies_invariants
+
+/-- The original theorem is FALSE - keeping for documentation purposes.
+    See the comment above for the counterexample.
+
+    The CORRECT theorem is `states_leading_to_success_error_free` above,
+    which quantifies over states that LEAD TO final_state, not states
+    reachable FROM initial_state. -/
+theorem parsing_success_implies_invariants_FALSE
     (initial_state final_state : ParserState)
     (bytes : ByteArray) :
     initial_state.db.error = false →
     final_state = initial_state.feedAll 0 bytes →
     final_state.db.error = false →
-    -- Then: All intermediate steps preserved invariants
+    -- FALSE: Can reach error states via counterfactual FeedStep with bad tokens
     (∀ s, FeedExecution initial_state s → s.db.error = false ∨ s = final_state) := by
   intro h_init h_final h_success
   intro s h_exec
-  by_cases h : s.db.error = false
-  · left; exact h
-  · -- Need: FeedExecution s final_state (requires execution_linear)
-    -- Then: apply states_leading_to_success_error_free h_success s
-    -- This contradicts h : s.db.error ≠ false
-    sorry
+  -- This is FALSE - see counterexample above
+  -- We keep this as documentation of the incorrect formulation
+  sorry
 
 /-! ## Tactics for Feed Proofs -/
 
