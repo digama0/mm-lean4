@@ -936,6 +936,27 @@ theorem FeedExecution.error_monotonic {s₁ s₂ : ParserState} :
     -- Then use IH to show s₃ preserves error from s₂
     exact ih h_s2_err
 
+/-- Contrapositive of error_monotonic: if final state has no error,
+    then initial state had no error.
+    This is the KEY lemma for proving execution invariants! -/
+theorem FeedExecution.all_error_free {s₁ s₂ : ParserState} :
+    FeedExecution s₁ s₂ →
+    s₂.db.error = false →
+    s₁.db.error = false := by
+  intro h_exec h_final
+  induction h_exec with
+  | refl => exact h_final
+  | step s₁ s₂ s₃ h_step _ ih =>
+    have h_s2 := ih h_final
+    -- By contrapositive: if s₁.error = true, then s₂.error = true (via FeedStep.preserves_error)
+    -- But s₂.error = false (from ih), so s₁.error = false
+    cases h_s1 : s₁.db.error with
+    | false => rfl
+    | true =>
+      have h_bad := FeedStep.preserves_error h_step h_s1
+      -- h_bad : s₂.db.error = true, h_s2 : s₂.db.error = false - contradiction
+      simp only [h_s2, Bool.false_eq_true] at h_bad
+
 /-! ## Induction Principle for Feed
 
 The key insight: feed is structurally recursive on (arr.size - i).
@@ -1632,20 +1653,35 @@ theorem feedToken_frame_behavior (s : ParserState) (pos : Nat) (tk : ByteSlice) 
         | inl h => left; simp only [h_db_eq] at h; exact congrArg Frame.hyps h
         | inr h => right; right; right; simp only [h_db_eq] at h; exact h
 
+/-- PROVEN: Any state that leads to a successful final state is error-free.
+    This is the direct application of the contrapositive of error_monotonic.
+
+    This is the KEY theorem for invariant proofs:
+    If we can show `FeedExecution s final_state` for any intermediate state `s`,
+    then `s.db.error = false` follows immediately. -/
+theorem states_leading_to_success_error_free
+    (final_state : ParserState)
+    (h_success : final_state.db.error = false)
+    (s : ParserState)
+    (h_exec : FeedExecution s final_state) :
+    s.db.error = false :=
+  FeedExecution.all_error_free h_exec h_success
+
 /-- Pattern: If parsing succeeds (no error), invariants were maintained.
 
-    This theorem requires proving that FeedExecution forms a total order for feedAll:
+    NOTE: This theorem requires "execution totality" - knowing that any state
+    reachable FROM initial_state eventually LEADS TO final_state.
+
+    The direction matters:
+    - We have: FeedExecution initial_state s (s is reachable from initial)
+    - We need: FeedExecution s final_state (s leads to final)
+
+    With execution totality, apply `states_leading_to_success_error_free`.
+
+    Pending: Prove execution totality:
     - feedAll_produces_execution: FeedExecution s (s.feedAll base arr)
-    - execution_deterministic: FeedExecution s₁ s₂ → FeedExecution s₁ s₃ →
-                               s₂ = s₃ ∨ FeedExecution s₂ s₃ ∨ FeedExecution s₃ s₂
-
-    With these, the proof uses contrapositive of error_monotonic:
-    - If s.db.error = true and FeedExecution s final_state, then final_state.db.error = true
-    - But h_success says final_state.db.error = false
-    - So s.db.error must be false
-
-    Marked as axiom pending execution structure proofs.
-    See: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/loop.20invariant.20reasoning
+    - execution_linear: FeedExecution s₁ s₃ → FeedExecution s₁ s₂ →
+                        FeedExecution s₂ s₃ ∨ s₂ = s₃ ∨ FeedExecution s₃ s₂
 -/
 theorem parsing_success_implies_invariants
     (initial_state final_state : ParserState)
@@ -1659,8 +1695,9 @@ theorem parsing_success_implies_invariants
   intro s h_exec
   by_cases h : s.db.error = false
   · left; exact h
-  · -- Requires: FeedExecution s final_state (from execution totality)
-    -- Then: FeedExecution.error_monotonic contradicts h_success
+  · -- Need: FeedExecution s final_state (requires execution_linear)
+    -- Then: apply states_leading_to_success_error_free h_success s
+    -- This contradicts h : s.db.error ≠ false
     sorry
 
 /-! ## Tactics for Feed Proofs -/
