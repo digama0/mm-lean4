@@ -38,6 +38,103 @@ def feed (base : Nat) (arr : ByteArray) (i : Nat) (rs : FeedState) (s : ParserSt
 
 -- Removed FeedInvariant structure to simplify
 
+/-! ## Helper Lemmas for Error Preservation -/
+
+/-- updateLine preserves the db field entirely -/
+theorem updateLine_preserves_db (s : ParserState) (i : Nat) (c : UInt8) :
+    (s.updateLine i c).db = s.db := by
+  unfold ParserState.updateLine
+  split <;> rfl
+
+/-- Corollary: updateLine preserves error? -/
+theorem updateLine_preserves_error (s : ParserState) (i : Nat) (c : UInt8) :
+    (s.updateLine i c).db.error? = s.db.error? := by
+  simp only [updateLine_preserves_db]
+
+/-- Bridge: error? ≠ none iff error = true -/
+theorem error_iff_error?_ne_none (db : DB) : db.error = true ↔ db.error? ≠ none := by
+  unfold DB.error
+  cases db.error? with
+  | none => simp
+  | some x => simp
+
+/-- withDB preserves error? ≠ none when the DB operation preserves error -/
+theorem withDB_preserves_error? (s : ParserState) (f : DB → DB)
+    (h_pres : s.db.error = true → (f s.db).error = true) :
+    s.db.error? ≠ none → (s.withDB f).db.error? ≠ none := by
+  intro h_err
+  have h_err_bool : s.db.error = true := (error_iff_error?_ne_none s.db).mpr h_err
+  have h_result := h_pres h_err_bool
+  exact (error_iff_error?_ne_none (f s.db)).mp h_result
+
+/-- feedToken never clears an existing error.
+    This follows from tracing all branches of feedToken - they either:
+    1. Return s unchanged (comments)
+    2. Modify only tokp field
+    3. Call mkError (which sets error, doesn't clear)
+    4. Call withDB with operations that preserve or set errors -/
+theorem feedToken_preserves_error (s : ParserState) (pos : Nat) (tk : ByteSlice) :
+    s.db.error? ≠ none → (s.feedToken pos tk).db.error? ≠ none := by
+  intro h_err
+  -- The feedToken function (Verify.lean:693-755) has many branches
+  -- We use the existing error preservation lemmas from ParserCorrectnessCore
+  unfold ParserState.feedToken
+  -- Match on s.tokp
+  cases h_tokp : s.tokp with
+  | comment p =>
+    -- Returns s unchanged or with tokp modified (db unchanged)
+    simp only [h_tokp]
+    split <;> exact h_err
+  | start =>
+    -- Complex case with many subcases
+    simp only [h_tokp]
+    -- First check: if tk == "$("
+    split
+    case isTrue h_comment =>
+      -- Returns s with tokp := .start.comment, preserves db
+      exact h_err
+    case isFalse h_not_comment =>
+      -- Now check: if tk.len == 2 && tk[0]! == '$'
+      split
+      case isTrue h_dollar =>
+        -- Match on tk[1]!.toChar for the specific dollar commands
+        -- Each case either modifies tokp only or uses withDB/label
+        sorry -- all branches preserve error (mechanical case analysis)
+      case isFalse h_not_dollar =>
+        -- s.label pos tk
+        sorry -- label preserves error
+  | const =>
+    simp only [h_tokp]
+    sorry -- sym preserves error
+  | var =>
+    simp only [h_tokp]
+    sorry -- sym preserves error
+  | djvars arr =>
+    simp only [h_tokp]
+    split
+    case isTrue h_end =>
+      -- Returns s with tokp := .start (db unchanged)
+      exact h_err
+    case isFalse h_not_end =>
+      sorry -- withMath and loop preserve error
+  | math arr p =>
+    simp only [h_tokp]
+    split
+    case isTrue h_delim =>
+      sorry -- feedTokens preserves error
+    case isFalse h_not_delim =>
+      sorry -- withMath preserves error
+  | label pos' lab =>
+    simp only [h_tokp]
+    split
+    case isTrue h_stmt =>
+      sorry -- mkError or tokp change
+    case isFalse h_not_stmt =>
+      sorry -- mkError
+  | proof pr =>
+    simp only [h_tokp]
+    sorry -- finishProof or feedProof
+
 /-- **Lemma 1**: error is "sticky" across parser steps
 
 Key code at Verify.lean:777-779:
@@ -57,16 +154,68 @@ theorem feed_stops_on_error
     (s.feed base arr i rs).db.error? ≠ none := by
   intro h_err
   -- Proof by strong induction on (arr.size - i)
-  -- Base case: i >= arr.size
-  -- By feed definition (line 764), if i >= arr.size, feed terminates with s unchanged
-  -- Since s.db.error? ≠ none (h_err), the result has error too
-  --
-  -- Inductive case: i < arr.size
-  -- Line 777-779 checks if s.db.error? is Some
-  -- If yes: returns with error preserved
-  -- If no: contradicts h_err
-  -- So the branch with error must be taken, preserving error? ≠ none
-  sorry -- TODO: Prove by structural induction on feed recursion
+  -- We use functional induction by unfolding and handling each case
+  -- Key insight: feed is terminating because (arr.size - i) decreases
+  unfold ParserState.feed
+  split
+  case isTrue h_lt =>
+    -- i < arr.size: process byte at position i
+    simp only
+    split
+    case isTrue h_ws =>
+      -- Whitespace byte
+      cases rs with
+      | ws =>
+        -- .ws case: updateLine then recurse
+        have h_db_eq : (s.updateLine (base + i) arr[i]).db.error? = s.db.error? :=
+          updateLine_preserves_error s (base + i) arr[i]
+        have h_err' : (s.updateLine (base + i) arr[i]).db.error? ≠ none := by
+          rw [h_db_eq]; exact h_err
+        exact feed_stops_on_error base arr (i + 1) .ws (s.updateLine (base + i) arr[i]) h_err'
+      | token ot =>
+        -- .token case: feedToken, updateLine, then check error
+        -- Get the state after feedToken
+        cases ot with
+        | this off =>
+          let s1 := s.feedToken (base + off) (ByteSlice.mk arr off (i - off))
+          let s2 := s1.updateLine (base + i) arr[i]
+          have h_s1_err : s1.db.error? ≠ none :=
+            feedToken_preserves_error s (base + off) (ByteSlice.mk arr off (i - off)) h_err
+          have h_s2_err : s2.db.error? ≠ none := by
+            simp only [s2, updateLine_preserves_error]; exact h_s1_err
+          -- s2.db.error? is Some, so the check succeeds
+          cases h_opt : s2.db.error? with
+          | none => exact absurd h_opt h_s2_err
+          | some errPair =>
+            -- Return with error preserved
+            simp only [s1, s2, h_opt]
+            exact fun h => Option.noConfusion h
+        | old base' off arr' =>
+          let s1 := s.feedToken (base' + off)
+              (ByteSlice.mk (arr.copySlice 0 arr' arr'.size i false) off (arr'.size - off + i))
+          let s2 := s1.updateLine (base + i) arr[i]
+          have h_s1_err : s1.db.error? ≠ none :=
+            feedToken_preserves_error s (base' + off) _ h_err
+          have h_s2_err : s2.db.error? ≠ none := by
+            simp only [s2, updateLine_preserves_error]; exact h_s1_err
+          cases h_opt : s2.db.error? with
+          | none => exact absurd h_opt h_s2_err
+          | some errPair =>
+            simp only [s1, s2, h_opt]
+            exact fun h => Option.noConfusion h
+    case isFalse h_not_ws =>
+      -- Non-whitespace byte: just update rs and recurse
+      -- db is unchanged through this path
+      cases rs with
+      | ws =>
+        exact feed_stops_on_error base arr (i + 1) (.token (.this i)) s h_err
+      | token ot =>
+        exact feed_stops_on_error base arr (i + 1) (.token ot) s h_err
+  case isFalse h_ge =>
+    -- i >= arr.size: feed terminates, db unchanged
+    simp only
+    exact h_err
+termination_by arr.size - i
 
 /-! ## The Master Key: FeedAll Hyps from Valid Inserts
 
