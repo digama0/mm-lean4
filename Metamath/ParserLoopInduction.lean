@@ -804,7 +804,7 @@ theorem feedAll_error_monotonic
   | none => left; rfl
   | some e => right; simp
 
-/-- **Lemma 3**: insertHyp call order during feedAll
+/-! ## Lemma 3: insertHyp call order during feedAll
 
 Key insight: When feedAll processes bytes and calls feedTokens (line 613),
 each successful insertHyp call adds exactly one label to frame.hyps.
@@ -822,31 +822,36 @@ The key line 310: `db.withHyps fun hyps => hyps.push l` adds l to frame.hyps.
 Therefore, as feedAll processes the byte sequence, calling insertHyp in sequence,
 the frame.hyps array grows by exactly one element per insertHyp call.
 -/
+
+/-- mkError preserves frame -/
+theorem mkError_preserves_frame (db : DB) (pos : Pos) (msg : String) :
+    (db.mkError pos msg).frame = db.frame := by
+  rfl
+
+/-- insert preserves frame (it only modifies error? or objects).
+
+    insert definition (Verify.lean:279-294):
+    - Returns db unchanged, mkError (which preserves frame), or { db with objects := ... }
+    - All branches preserve frame since only error?/objects are modified -/
+theorem insert_preserves_frame (db : DB) (pos : Pos) (l : String) (obj : String → Object) :
+    (db.insert pos l obj).frame = db.frame := by
+  unfold Verify.DB.insert
+  simp only [mkError_preserves_frame]
+  -- The branching structure is complex but all paths preserve frame
+  -- All branches: db unchanged (rfl), mkError (frame unchanged), or { db with objects }
+  sorry
+
 theorem insertHyp_call_order
     (db : DB) (pos : Pos) (label : String) (ess : Bool) (f : Formula) :
     (Verify.DB.insertHyp db pos label ess f).frame.hyps =
     db.frame.hyps.push label := by
-  -- unfold insertHyp to get the definition:
-  -- let db := Id.run do (duplicate check)
-  -- let db := db.insert pos label (.hyp ess f)
-  -- db.withHyps fun hyps => hyps.push label
-  --
-  -- The duplicate check (Id.run block) either keeps db unchanged or sets error
-  -- Either way, it doesn't modify frame.hyps at that point
-  -- Then insert is called (doesn't touch frame)
-  -- Finally withHyps applies the function to hyps
-  --
-  -- withHyps definition (Verify.lean:276-277):
-  --   db.withFrame fun ⟨dj, hyps⟩ => ⟨dj, f hyps⟩
-  -- which expands to:
-  --   { db with frame := { dj := db.frame.dj, hyps := (fun hyps => hyps.push label) db.frame.hyps } }
-  --
-  -- So frame.hyps becomes db.frame.hyps.push label
-
   unfold Verify.DB.insertHyp
-  simp only [Verify.DB.insert, Verify.DB.withHyps, Verify.DB.withFrame]
-  -- After unfolding, we need to show that the frame transformation gives us the right result
-  sorry -- TODO: Complete unfolding of insert's error checking logic
+  -- Structure: let db' := Id.run {...}; let db'' := db'.insert ...; db''.withHyps ...
+  -- Key insight: the first two steps preserve frame, withHyps modifies it
+  simp only [Verify.DB.withHyps, Verify.DB.withFrame]
+  -- After withHyps/withFrame unfolding, need to show the hyps field
+  -- The Id.run block and insert preserve frame, so we get db.frame.hyps.push label
+  sorry -- TODO: Show Id.run duplicate check preserves frame
 
 /-! ## Helper Lemmas for Common Patterns -/
 
