@@ -436,17 +436,36 @@ private theorem djvars_list_forIn_preserves_error
     Both compute the same result: process array elements, early return on duplicate,
     or complete with final state.
 
-    Note: The do-notation with `return` desugars to a more complex forIn structure
-    using pairs (Option result, state) to track early returns. This lemma establishes
-    that despite the different desugaring, the computed result is identical.
+    **STATUS: UNPROVEN SORRY** - This must be proven for verification to be complete.
 
-    Technical challenge: Lean 4's for-loop elaboration creates complex terms that are
-    difficult to reason about directly. The proof requires understanding how forIn
-    desugars with early returns (tracking Option values). See Zulip discussion on
-    "loop invariants" for background on this challenge.
+    ## Technical Challenge
 
-    For now, we accept this as a semantic axiom - the auxiliary function correctly
-    models the loop behavior, which we've verified by inspection of the code. -/
+    The do-notation with `return` desugars to a complex forIn structure using pairs
+    (Option result, state) to track early returns. Unlike yield-only loops (which can
+    use `List.idRun_forIn_yield_eq_foldl` from stdlib), early-return loops require
+    custom reasoning about the ForInStep.done/yield distinction.
+
+    ## Proof Strategy (TODO)
+
+    1. Convert Array.forIn to List.forIn via `Array.forIn_toList`
+    2. Prove by induction on the list that:
+       - If any element matches tk, forIn returns `ForInStep.done (mkError ...)`
+       - Otherwise, all iterations yield updated state
+    3. Connect the List iteration result to `djvars_loop_aux arr s pos tk 0`
+
+    ## Available Infrastructure
+
+    - `djvars_list_forIn_preserves_error`: proves error preservation through the loop
+    - `djvars_loop_aux_preserves_error`: proves auxiliary function preserves error
+    - `djvars_loop_aux_hyps_behavior`: proves auxiliary function preserves hyps or sets error
+
+    These prove the SEMANTIC properties we need. The missing piece is showing the
+    do-notation loop EQUALS the auxiliary function (not just preserves the same properties).
+
+    ## References
+
+    - Zulip: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/loop.20invariant.20reasoning
+    - how-to-lean-batteries.md: Do-Notation and Loop Reasoning section -/
 theorem djvars_loop_eq_aux
     (arr : Array String) (s : ParserState) (pos : Pos) (tk : String) :
     (Id.run do
@@ -898,6 +917,170 @@ inductive FeedExecution : ParserState → ParserState → Prop where
       FeedStep s₁ s₂ →
       FeedExecution s₂ s₃ →
       FeedExecution s₁ s₃
+
+/-! ## Deterministic Feed Execution
+
+The key insight: FeedExecution above is nondeterministic (FeedStep allows any token).
+To reason about actual parsing, we need a DETERMINISTIC version tied to the input bytes.
+
+Critical: The feed loop state is (i, off, s) where:
+- i: current byte index
+- off: start of current token being built
+- s: parser state
+
+The step at index i depends on whether off < i (in a token) or off = i (not in a token).
+-/
+
+/-- A single step in deterministic feed execution with token offset tracking.
+    State is (index, token_offset, parser_state).
+    This captures exactly what the `feed` function does at each byte. -/
+inductive FeedStepDet (arr : ByteArray) (base : Nat) :
+    Nat → Nat → ParserState → Nat → ParserState → Prop where
+  | whitespace_no_token (i off : Nat) (s : ParserState) (h_lt : i < arr.size) :
+      isWhitespace arr[i] →
+      off = i →  -- No active token (we're at start position)
+      FeedStepDet arr base i off s (i + 1) (s.updateLine (base + i) arr[i])
+  | whitespace_end_token (i off : Nat) (s : ParserState) (h_lt : i < arr.size) :
+      isWhitespace arr[i] →
+      off < i →  -- Active token from off to i
+      FeedStepDet arr base i off s (i + 1) ((s.feedToken (base + off) (ByteSlice.mk arr off (i - off))).updateLine (base + i) arr[i])
+  | non_whitespace (i off : Nat) (s : ParserState) (h_lt : i < arr.size) :
+      ¬isWhitespace arr[i] →
+      FeedStepDet arr base i off s off s  -- Continue building token, no state change
+
+/-- Deterministic feed execution: follows exactly the bytes in arr.
+    State includes (i, off) pair for token tracking.
+    This is the CORRECT relation for reasoning about parsing. -/
+inductive FeedExecutionDet (arr : ByteArray) (base : Nat) :
+    Nat → Nat → ParserState → ParserState → Prop where
+  | done (i off : Nat) (s : ParserState) :
+      i ≥ arr.size →
+      -- At end, emit any remaining token if off < i
+      FeedExecutionDet arr base i off s
+        (if off < i then s.feedToken (base + off) (ByteSlice.mk arr off (arr.size - off)) else s)
+  | step (i off off' : Nat) (s₁ s₂ s₃ : ParserState) :
+      i < arr.size →
+      FeedStepDet arr base i off s₁ off' s₂ →
+      FeedExecutionDet arr base (i + 1) off' s₂ s₃ →
+      FeedExecutionDet arr base i off s₁ s₃
+
+/-- FeedStepDet is deterministic: same (i, off, s) gives same (off', s') -/
+theorem FeedStepDet.deterministic {arr : ByteArray} {base i off : Nat} {s : ParserState}
+    {off₁ off₂ : Nat} {s₁ s₂ : ParserState} :
+    FeedStepDet arr base i off s off₁ s₁ →
+    FeedStepDet arr base i off s off₂ s₂ →
+    off₁ = off₂ ∧ s₁ = s₂ := by
+  intro h1 h2
+  cases h1 with
+  | whitespace_no_token h_lt h_ws h_eq =>
+    cases h2 with
+    | whitespace_no_token _ _ _ => exact ⟨rfl, rfl⟩
+    | whitespace_end_token _ _ h_lt' =>
+      -- off = i but off < i - contradiction
+      omega
+    | non_whitespace _ h_not_ws =>
+      exact absurd h_ws h_not_ws
+  | whitespace_end_token h_lt h_ws h_lt_off =>
+    cases h2 with
+    | whitespace_no_token _ _ h_eq =>
+      -- off < i but off = i - contradiction
+      omega
+    | whitespace_end_token _ _ _ => exact ⟨rfl, rfl⟩
+    | non_whitespace _ h_not_ws =>
+      exact absurd h_ws h_not_ws
+  | non_whitespace h_lt h_not_ws =>
+    cases h2 with
+    | whitespace_no_token _ h_ws _ =>
+      exact absurd h_ws h_not_ws
+    | whitespace_end_token _ h_ws _ =>
+      exact absurd h_ws h_not_ws
+    | non_whitespace _ _ => exact ⟨rfl, rfl⟩
+
+/-- Deterministic execution is unique: same inputs give same outputs -/
+theorem FeedExecutionDet.deterministic {arr : ByteArray} {base i off : Nat} {s s₁ s₂ : ParserState} :
+    FeedExecutionDet arr base i off s s₁ →
+    FeedExecutionDet arr base i off s s₂ →
+    s₁ = s₂ := by
+  intro h1 h2
+  induction h1 generalizing s₂ with
+  | done i off s h_done =>
+    cases h2 with
+    | done _ _ _ _ => rfl
+    | step _ _ _ _ _ _ h_lt' _ _ => exact absurd h_lt' (Nat.not_lt_of_ge h_done)
+  | step i off off' s₁ s₂ s₃ h_lt h_step h_exec ih =>
+    cases h2 with
+    | done _ _ _ h_done' => exact absurd h_lt (Nat.not_lt_of_ge h_done')
+    | step _ _ off'' _ s₂' _ h_lt' h_step' h_exec' =>
+      -- Both took a step at index i, so (off', s₂) = (off'', s₂') (deterministic step)
+      have ⟨h_off_eq, h_s2_eq⟩ := FeedStepDet.deterministic h_step h_step'
+      subst h_off_eq h_s2_eq
+      exact ih h_exec'
+
+/-- FeedStepDet preserves error -/
+theorem FeedStepDet.preserves_error {arr : ByteArray} {base i off : Nat} {s : ParserState}
+    {off' : Nat} {s' : ParserState} :
+    FeedStepDet arr base i off s off' s' →
+    s.db.error = true →
+    s'.db.error = true := by
+  intro h_step h_err
+  cases h_step with
+  | whitespace_no_token _ _ _ =>
+    simp only [updateLine_preserves_db]
+    exact h_err
+  | whitespace_end_token h_lt _ _ =>
+    -- s' = (s.feedToken ...).updateLine ...
+    simp only [updateLine_preserves_db]
+    have h_err' : s.db.error? ≠ none := (error_iff_error?_ne_none s.db).mp h_err
+    have := feedToken_preserves_error s (base + off) (ByteSlice.mk arr off (i - off)) h_err'
+    exact (error_iff_error?_ne_none _).mpr this
+  | non_whitespace _ _ =>
+    exact h_err
+
+/-- Deterministic execution preserves error monotonicity -/
+theorem FeedExecutionDet.error_monotonic {arr : ByteArray} {base i off : Nat} {s₁ s₂ : ParserState} :
+    FeedExecutionDet arr base i off s₁ s₂ →
+    s₁.db.error = true →
+    s₂.db.error = true := by
+  intro h_exec h_err
+  induction h_exec with
+  | done i' off' s' h_done =>
+    split
+    · -- off' < i', emit final token
+      have h_err' : s'.db.error? ≠ none := (error_iff_error?_ne_none s'.db).mp h_err
+      have := feedToken_preserves_error s' (base + off') (ByteSlice.mk arr off' (arr.size - off')) h_err'
+      exact (error_iff_error?_ne_none _).mpr this
+    · -- off' ≥ i', no final token
+      exact h_err
+  | step i' off' off'' s' s_mid s_final h_lt h_step h_exec ih =>
+    have h_s_mid_err := FeedStepDet.preserves_error h_step h_err
+    exact ih h_s_mid_err
+
+/-- KEY: If final state has no error, all intermediate states have no error -/
+theorem FeedExecutionDet.all_error_free {arr : ByteArray} {base i off : Nat} {s₁ s₂ : ParserState} :
+    FeedExecutionDet arr base i off s₁ s₂ →
+    s₂.db.error = false →
+    s₁.db.error = false := by
+  intro h_exec h_final
+  induction h_exec with
+  | done i' off' s' h_done =>
+    split at h_final
+    · -- off' < i', need to show error propagates through feedToken
+      cases h_s1 : s'.db.error with
+      | false => rfl
+      | true =>
+        have h_err' : s'.db.error? ≠ none := (error_iff_error?_ne_none s'.db).mp h_s1
+        have := feedToken_preserves_error s' (base + off') (ByteSlice.mk arr off' (arr.size - off')) h_err'
+        have h_bad := (error_iff_error?_ne_none _).mpr this
+        simp only [h_final, Bool.false_eq_true] at h_bad
+    · exact h_final
+  | step i' off' off'' s' s_mid s_final h_lt h_step h_exec ih =>
+    have h_s_mid := ih h_final
+    -- By contrapositive: if s'.error = true, then s_mid.error = true
+    cases h_s1 : s'.db.error with
+    | false => rfl
+    | true =>
+      have h_bad := FeedStepDet.preserves_error h_step h_s1
+      simp only [h_s_mid, Bool.false_eq_true] at h_bad
 
 /-- FeedStep preserves error -/
 theorem FeedStep.preserves_error {s₁ s₂ : ParserState} :
