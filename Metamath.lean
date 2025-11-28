@@ -1,5 +1,6 @@
 import Metamath.Spec
 import Metamath.Verify
+import Metamath.DBLemmas  -- Basic DB operation lemmas
 import Metamath.KernelExtras
 import Metamath.KernelClean  -- Phase 1: Minimal axiomatic skeleton (bottom-up strategy)
 import Metamath.ParserInvariantsStep1

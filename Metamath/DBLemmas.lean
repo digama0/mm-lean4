@@ -109,9 +109,19 @@ theorem insert_with_error (db : DB) (pos : Pos) (label : String) (obj : String �
     (h : db.error = true) :
     db.insert pos label obj = db := by
   unfold DB.insert
-  -- The proof requires detailed case analysis on the nested if-then-else
-  -- We defer this as it's covered by the classifier theorems
-  sorry
+  -- After const check (which may or may not modify db), we check db.error
+  -- Since db.error = true, after the const check, error is still true
+  -- (either unchanged or mkError was called, both give error = true)
+  -- So the "if db.error then db else ..." returns db
+  split
+  · -- const case: either mkError called or db unchanged
+    split
+    · -- mkError called: need to show this equals db
+      simp [DB.mkError, DB.error, h]
+    · -- db unchanged
+      simp [h]
+  · -- non-const case: db unchanged
+    simp [h]
 
 /-- When insert succeeds (no error), it updates objects -/
 theorem insert_success_updates_objects (db : DB) (pos : Pos) (label : String) (obj : String → Object)
@@ -119,8 +129,22 @@ theorem insert_success_updates_objects (db : DB) (pos : Pos) (label : String) (o
     (h_no_dup : db.find? label = none)
     (h_not_const_inner : ¬(match obj label with | .const _ => !db.permissive && db.scopes.size > 0 | _ => false)) :
     (db.insert pos label obj).objects = db.objects.insert label (obj label) := by
-  -- Requires detailed unfolding of insert implementation
-  sorry
+  -- Need to prove that insert doesn't error, then use DB.insert_no_dup_objects
+  -- The h_not_const_inner hypothesis ensures the const check doesn't fail
+  have h_no_err_after : (db.insert pos label obj).error = false := by
+    unfold DB.insert DB.error DB.mkError
+    split
+    · -- const case
+      split
+      · -- const check fails - contradicts h_not_const_inner
+        exfalso
+        apply h_not_const_inner
+        simp_all
+      · -- const check passes
+        simp [h_no_error, h_no_dup]
+    · -- non-const case
+      simp [h_no_error, h_no_dup]
+  exact DB.insert_no_dup_objects db pos label obj h_no_error h_no_dup h_no_err_after
 
 /-- When insert succeeds, find? label returns the inserted object -/
 theorem insert_success_find? (db : DB) (pos : Pos) (label : String) (obj : String → Object)
@@ -128,8 +152,16 @@ theorem insert_success_find? (db : DB) (pos : Pos) (label : String) (obj : Strin
     (h_no_dup : db.find? label = none)
     (h_not_const_inner : ¬(match obj label with | .const _ => !db.permissive && db.scopes.size > 0 | _ => false)) :
     (db.insert pos label obj).find? label = some (obj label) := by
-  -- Depends on insert_success_updates_objects and Std.HashMap.insert
-  sorry
+  -- Prove that insert doesn't error, then use DB.insert_find?_self
+  have h_no_err_after : (db.insert pos label obj).error = false := by
+    unfold DB.insert DB.error DB.mkError
+    split
+    · -- const case
+      split
+      · exfalso; apply h_not_const_inner; simp_all
+      · simp [h_no_error, h_no_dup]
+    · simp [h_no_error, h_no_dup]
+  exact DB.insert_find?_self db pos label obj h_no_error h_no_dup h_no_err_after
 
 /-- insert preserves error=false when no error conditions -/
 theorem insert_preserves_no_error (db : DB) (pos : Pos) (label : String) (obj : String → Object)
@@ -137,7 +169,17 @@ theorem insert_preserves_no_error (db : DB) (pos : Pos) (label : String) (obj : 
     (h_no_dup : db.find? label = none)
     (h_not_const_inner : ¬(match obj label with | .const _ => !db.permissive && db.scopes.size > 0 | _ => false)) :
     (db.insert pos label obj).error = false := by
-  -- Requires detailed unfolding of insert implementation
-  sorry
+  unfold DB.insert DB.error DB.mkError
+  split
+  · -- const case
+    split
+    · -- const check fails - contradicts h_not_const_inner
+      exfalso
+      apply h_not_const_inner
+      simp_all
+    · -- const check passes
+      simp [h_no_error, h_no_dup]
+  · -- non-const case
+    simp [h_no_error, h_no_dup]
 
 end Metamath.DBLemmas
