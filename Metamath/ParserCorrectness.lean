@@ -857,8 +857,21 @@ theorem parser_construction_wellformed
   -- Establish initial WF
   have h_init_wf : WellFormedDB (.mk (frame := ⟨#[], #[]⟩) (scopes := #[]) (objects := Std.HashMap.emptyWithCapacity)
                                       (interrupt := false) (error? := none) (permissive := false)) := by
-    unfold WellFormedDB WellFormedFrame
-    sorry -- TODO: Prove empty frame is well-formed
+    unfold WellFormedDB WellFormedFrame UniqueFloatVars
+    constructor
+    · -- WellFormedFrame: both conditions vacuously true for empty frame
+      constructor
+      · -- ∀ i < 0, ... is vacuously true
+        intro i hi
+        simp at hi
+      · -- UniqueFloatVars: ∀ i j < 0, ... is vacuously true
+        intro i j hi hj
+        simp at hi
+    · -- All objects satisfy their well-formedness: vacuously true for empty HashMap
+      intro lbl obj h_find
+      -- h_find states that we found something in an empty HashMap, which is impossible
+      unfold DB.find? at h_find
+      simp at h_find
 
   -- Use DBExecution.preserves_wellformedness
   -- We need to connect feedAll to DBExecution
