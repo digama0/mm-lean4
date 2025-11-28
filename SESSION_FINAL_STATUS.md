@@ -1,9 +1,29 @@
-# Final Session Status: Sorry Elimination Progress
+# Session Status: Sorry Elimination Progress (Continued)
 
-**Date**: 2025-11-28
+**Date**: 2025-11-28 (Session 2)
 **Branch**: `claude/lean-4.24-batteries-01DQc2gXMAog3Q2TSE8sU2kv`
 **Lean Version**: 4.24.0
 **Batteries Version**: 4.24.0
+
+## 🆕 Session 2 Progress
+
+### Sorries Eliminated: 5
+1. **ParserCorrectness.lean** (1 sorry)
+   - `insert_findable` (line 573): Proven using existing `DB.insert_find?_self` theorem
+
+2. **DBLemmas.lean** (4 sorries - COMPLETE FILE ✅)
+   - `insert_with_error`: Error short-circuit in insert
+   - `insert_success_updates_objects`: Objects map updated on success
+   - `insert_success_find?`: Find inserted object after success
+   - `insert_preserves_no_error`: Error=false preserved when conditions met
+
+### Commits
+- `b887109`: Prove insert_findable using existing DB.insert_find?_self theorem
+- `a262001`: Eliminate all 4 sorries in DBLemmas.lean
+
+---
+
+# Previous Session Status (Session 1)
 
 ## 🎯 Session Objectives
 
