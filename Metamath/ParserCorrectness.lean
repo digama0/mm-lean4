@@ -651,9 +651,7 @@ theorem DBExecution.preserves_wellformedness {db₁ db₂ : DB} :
   | step db₁ db₂ db₃ h_step h_exec ih =>
     -- Need intermediate error = false
     have h_no_err2' : db₂.error = false := by
-      cases h_step <;> try assumption
-      -- pushScope and withFrame cases
-      all_goals { sorry }
+      cases h_step <;> assumption
     -- Apply IH to get WF for db₂
     have h_wf2 : WF.WellFormedDB db₂ := by
       -- Each step preserves WF when no error
