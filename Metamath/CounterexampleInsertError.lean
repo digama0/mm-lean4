@@ -55,8 +55,9 @@ theorem insert_const_inner_different_error :
   -- So result error? has the NEW message, not the original "previous error"
   -- The goal becomes: prove the error? fields with different messages are not equal
   simp
-  -- simp should reduce to string inequality, but if it doesn't we need to be more explicit
-  sorry
+  -- After simp, we should have a goal that reduces to String inequality
+  -- The error messages "c must be in outermost block" ≠ "previous error"
+  decide
 
 /-- The key counterexample: insert on const in inner scope changes the DB
 
