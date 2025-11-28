@@ -293,6 +293,48 @@ def insert (db : DB) (pos : Pos) (l : String) (obj : String → Object) : DB :=
   else
     { db with objects := db.objects.insert l (obj l) }
 
+/-- Equation lemma: When db has no error and db.find? l = none and insert doesn't error,
+    it adds to objects. -/
+theorem insert_no_dup_objects
+    (db : DB) (pos : Pos) (l : String) (obj : String → Object)
+    (h_no_prior_err : db.error = false)
+    (h_no_dup : db.find? l = none)
+    (h_no_err : (db.insert pos l obj).error = false) :
+    (db.insert pos l obj).objects = db.objects.insert l (obj l) := by
+  unfold insert
+  -- Case split on obj l to handle const check
+  cases h_obj : obj l with
+  | const s =>
+    simp only [h_obj]
+    -- First split: const check
+    split
+    · -- Const check failed, creates error - contradiction with h_no_err
+      exfalso
+      simp only [h_obj, insert, error, mkError] at h_no_err
+      split at h_no_err
+      · simp only [Option.isSome] at h_no_err
+        contradiction
+      · -- The isFalse case is impossible because outer split is isTrue
+        simp_all
+    · -- Const check passed - db.error = false reduces if to else branch
+      simp only [h_no_prior_err, Bool.false_eq_true, ite_false, h_no_dup]
+  | var s =>
+    simp only [h_obj, h_no_prior_err, Bool.false_eq_true, ite_false, h_no_dup]
+  | hyp ess f s =>
+    simp only [h_obj, h_no_prior_err, Bool.false_eq_true, ite_false, h_no_dup]
+  | assert f frame s =>
+    simp only [h_obj, h_no_prior_err, Bool.false_eq_true, ite_false, h_no_dup]
+
+/-- Equation lemma: insert find? self when no duplicate and no error. -/
+theorem insert_find?_self
+    (db : DB) (pos : Pos) (l : String) (obj : String → Object)
+    (h_no_prior_err : db.error = false)
+    (h_no_dup : db.find? l = none)
+    (h_no_err : (db.insert pos l obj).error = false) :
+    (db.insert pos l obj).find? l = some (obj l) := by
+  simp only [find?, insert_no_dup_objects db pos l obj h_no_prior_err h_no_dup h_no_err]
+  exact Std.HashMap.getElem?_insert_self
+
 def insertHyp (db : DB) (pos : Pos) (l : String) (ess : Bool) (f : Formula) : DB :=
   -- For $f statements (ess = false), check that no other $f exists for this variable
   let db := Id.run do

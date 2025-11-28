@@ -216,27 +216,48 @@ inductive ProofValidSeq (Γ : Database) : Frame → List Expr → Frame → List
       ProofValidSeq Γ fr₁ stk₁ fr₂ stk₂ →
       ProofValidSeq Γ fr₀ stk₀ fr₂ stk₂
 
-/-- If a sequence ends with a singleton stack, we get Provable.
+/-! ## Converting Proofs to Provable
 
-    NOTE: This theorem is not provable in full generality! The issue is:
-    - In the nil case, if stk = [e], we need to prove Provable Γ fr e
-    - But Provable requires actual proof steps that build [e] from empty
-    - If we're in nil (no steps), we can't construct such steps
+The key theorem is `ProofValid.toProvable`: if we have a valid proof that produces
+a singleton stack [e], then e is provable. This is the main connection used by
+the soundness proof.
 
-    IN PRACTICE: This case never occurs! In verify_impl_sound, we start with
-    empty stack (stkS = []). If no proof steps are executed, stkS' = [] and
-    length = 0 ≠ 1, so toProvable is never called.
+`ProofValidSeq.toProvable` has issues due to the definition of `ProofValidSeq`
+having unconstrained parameters. See the TODO in the definition.
+-/
 
-    PRAGMATIC APPROACH: We axiomatize the nil case, recognizing it's unreachable
-    in the actual proof pipeline. The cons case could be proven by composing steps,
-    but it's also unused (cons is never constructed in practice).
+-- **PROVEN**: If we have a ProofValid that produces [e], we get Provable
+theorem ProofValid.toProvable {Γ : Database} {fr : Frame} {e : Expr} {steps : List ProofStep} :
+  ProofValid Γ fr [e] steps → Provable Γ fr e := by
+  intro h_valid
+  exact ⟨steps, [e], h_valid, rfl⟩
 
-    This is sound because: the only call site (fold_maintains_inv_and_provable)
-    starts with empty stack, making the problematic case impossible. -/
--- TODO: Prove by induction on ProofValidSeq derivation
+-- **UNPROVEN**: ProofValidSeq.toProvable has fundamental issues due to the
+-- definition of ProofValidSeq. The nil case requires proof steps that don't exist.
+-- The cons case has frame tracking issues (fr₁ unconstrained in constructor).
+--
+-- In practice, we use ProofValid.toProvable directly, or construct ProofValidSeq
+-- via toSeq_from_nil which ensures proper frame alignment.
 theorem ProofValidSeq.toProvable {Γ : Database} {fr : Frame} {stk : List Expr} {e : Expr} :
   ProofValidSeq Γ fr stk fr [e] → Provable Γ fr e := by
-  sorry
+  intro h_seq
+  cases h_seq with
+  | nil fr' stk' =>
+    -- nil case: stk' = [e], same frame, but NO proof steps exist
+    -- **UNPROVEN**: Cannot construct Provable without steps
+    sorry
+  | cons fr₀ stk₀ fr₁ stk₁ fr₂ stk₂ steps h_valid h_seq' =>
+    -- cons case: we have ProofValid Γ fr₀ stk₁ steps
+    cases h_seq' with
+    | nil fr'' stk'' =>
+      -- h_seq' is nil, so stk₁ = [e]
+      -- h_valid : ProofValid Γ fr₀ [e] steps, with fr₀ = fr
+      exact ProofValid.toProvable h_valid
+    | cons _ _ _ _ _ _ _ _ _ =>
+      -- Nested cons: need to recurse but frame tracking is problematic
+      -- The inner ProofValid might be in a different frame than fr
+      -- **UNPROVEN**: Requires fixing ProofValidSeq definition
+      sorry
 
 /-- Turn a completed `ProofValid` derivation into a left-to-right `ProofValidSeq`
     starting from the empty stack and same frame.
@@ -248,12 +269,14 @@ theorem ProofValidSeq.toProvable {Γ : Database} {fr : Frame} {stk : List Expr} 
     We can build a ProofValid inductively by extending with single steps,
     then convert to ProofValidSeq at the end to apply toProvable.
     This avoids threading ProofValidSeq through array folds. -/
--- TODO: Prove by structural induction with ProofValidSeq.cons
--- Convert each ProofValid step into a ProofValidSeq step
+-- Convert ProofValid to ProofValidSeq using cons + nil
 theorem ProofValid.toSeq_from_nil
   {Γ : Database} {fr : Frame} {stk : List Expr} {steps : List ProofStep} :
   ProofValid Γ fr stk steps → ProofValidSeq Γ fr [] fr stk := by
-  sorry
+  intro h_valid
+  -- Use cons: ProofValid Γ fr stk steps, ProofValidSeq Γ fr stk fr stk (via nil)
+  -- gives ProofValidSeq Γ fr [] fr stk
+  exact ProofValidSeq.cons fr [] fr stk fr stk steps h_valid (ProofValidSeq.nil fr stk)
 
 /-! ## Soundness Statement
 

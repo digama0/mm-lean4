@@ -65,14 +65,76 @@ instance : LawfulBEq String where
 Common pattern: build HashMap via fold over a list of insertions.
 -/
 
-/-- Folding insertions preserves findability -/
+/-- Helper: fold over insertions doesn't affect keys not in the list -/
+theorem HashMap.fold_insert_preserves_other {α β} [BEq α] [Hashable α] [LawfulBEq α]
+    (pairs : List (α × β)) (m : HashMap α β) (k : α)
+    (h_not_in : ∀ v, (k, v) ∉ pairs) :
+    (pairs.foldl (fun acc (kv : α × β) => acc.insert kv.1 kv.2) m)[k]? = m[k]? := by
+  induction pairs generalizing m with
+  | nil => rfl
+  | cons hd tl IH =>
+    simp only [List.foldl_cons]
+    cases hd with
+    | mk k' v' =>
+      have h_ne : k ≠ k' := by
+        intro h_eq
+        subst h_eq
+        have := h_not_in v'
+        simp at this
+      rw [IH]
+      · rw [Std.HashMap.getElem?_insert]
+        -- Goal: (if (k' == k) = true then some v' else m[k]?) = m[k]?
+        -- We have h_ne : k ≠ k', so k' ≠ k
+        have h_ne' : k' ≠ k := fun h => h_ne h.symm
+        simp only [beq_iff_eq, h_ne', ↓reduceIte]
+      · intro v h_v
+        exact h_not_in v (List.mem_cons_of_mem _ h_v)
+
+/-- Folding insertions preserves findability when keys are unique.
+    Without uniqueness, the last insertion of a key wins. -/
 theorem HashMap.find?_after_fold_insert {α β} [BEq α] [Hashable α] [LawfulBEq α]
-    (pairs : List (α × β)) (m : HashMap α β) (k : α) (v : β) :
+    (pairs : List (α × β)) (m : HashMap α β) (k : α) (v : β)
+    (h_unique : ∀ v', (k, v') ∈ pairs → v' = v) :
     (k, v) ∈ pairs →
-    -- No duplicate keys assumption
-    ((pairs.foldl (fun acc (k, v) => acc.insert k v) m)[k]? = some v ∨
-     m[k]? = some v) := by
-  sorry -- TODO: Prove by induction on pairs
+    (pairs.foldl (fun acc (kv : α × β) => acc.insert kv.1 kv.2) m)[k]? = some v := by
+  intro h_mem
+  induction pairs generalizing m with
+  | nil => simp at h_mem
+  | cons hd tl IH =>
+    simp only [List.foldl_cons]
+    cases hd with
+    | mk k' v' =>
+      -- Check if (k,v) is the head or in the tail
+      rcases List.mem_cons.mp h_mem with h_eq | h_in_tl
+      · -- (k, v) is the head element
+        simp only [Prod.mk.injEq] at h_eq
+        obtain ⟨rfl, rfl⟩ := h_eq
+        -- Need to show k persists through the fold
+        -- Since keys are unique, if k appears in tl it must be with value v
+        by_cases h_k_in_tl : ∃ v'', (k, v'') ∈ tl
+        · -- k appears in tl with some value v''
+          obtain ⟨v'', h_v''⟩ := h_k_in_tl
+          -- By uniqueness, v'' = v
+          have h_v_eq : v'' = v := h_unique v'' (List.mem_cons_of_mem _ h_v'')
+          subst h_v_eq
+          -- Apply IH
+          apply IH
+          · intro v''' h_v'''
+            exact h_unique v''' (List.mem_cons_of_mem _ h_v''')
+          · exact h_v''
+        · -- k doesn't appear in tl
+          -- Convert ¬∃ to ∀¬
+          have h_not_in : ∀ v'', (k, v'') ∉ tl := by
+            intro v'' h_v''
+            exact h_k_in_tl ⟨v'', h_v''⟩
+          -- Use helper lemma
+          rw [HashMap.fold_insert_preserves_other tl (m.insert k v) k h_not_in]
+          exact Std.HashMap.getElem?_insert_self
+      · -- (k, v) is in the tail, apply IH
+        apply IH
+        · intro v' h_v'
+          exact h_unique v' (List.mem_cons_of_mem _ h_v')
+        · exact h_in_tl
 
 /-! ## Pattern: Proving Properties Through HashMap Construction
 
@@ -97,7 +159,28 @@ theorem HashMapBuildInvariant.insert_preserves {α β} [BEq α] [Hashable α] [L
     ∃ hbi' : @HashMapBuildInvariant α β _ _,
       hbi'.map = hbi.map.insert k v ∧
       hbi'.processed = k :: hbi.processed := by
-  sorry -- TODO: Construct the new HashMapBuildInvariant
+  -- Construct the new invariant
+  refine ⟨⟨hbi.map.insert k v, k :: hbi.processed, ?_⟩, rfl, rfl⟩
+  -- Prove the invariant
+  intro k' h_mem
+  simp only [List.mem_cons] at h_mem
+  rcases h_mem with rfl | h_in_old
+  · -- k' = k: the newly inserted key
+    simp only [Std.HashMap.getElem?_insert_self, Option.isSome_some]
+  · -- k' in old processed list
+    -- k' was findable in hbi.map, still findable after insert
+    have h_old := hbi.inv k' h_in_old
+    simp only [Option.isSome_iff_exists] at h_old ⊢
+    obtain ⟨val, h_val⟩ := h_old
+    -- After insert, either k' == k (contradiction) or k' persists
+    by_cases h_eq : k' = k
+    · subst h_eq; exact absurd h_in_old h_not_dup
+    · rw [Std.HashMap.getElem?_insert]
+      have h_ne : ¬(k == k') := by
+        simp only [beq_iff_eq]
+        exact fun h => h_eq h.symm
+      simp [h_ne]
+      exact ⟨val, h_val⟩
 
 /-! ## Application to Verify.DB
 
@@ -105,17 +188,41 @@ The DB object map is just a HashMap String Object.
 These lemmas directly apply to proving parser properties.
 -/
 
-/-- DB.find? after insert (no error case) -/
+/-- Helper: The const check in DB.insert only potentially sets error, doesn't modify objects -/
+theorem DB.insert_const_check_preserves_objects
+    (db : Verify.DB) (pos : Verify.Pos) (l : String) (obj : String → Verify.Object) :
+    let db_after_const_check := match obj l with
+      | .const _ =>
+        if !db.permissive && db.scopes.size > 0 then
+          db.mkError pos s!"$c must be in outermost block (spec Section 4.2.8)"
+        else db
+      | _ => db
+    db_after_const_check.objects = db.objects := by
+  cases obj l <;> (simp only [Verify.DB.mkError]; try (split <;> rfl))
+
+/-- Helper: The const check preserves find? results -/
+theorem DB.insert_const_check_preserves_find
+    (db : Verify.DB) (pos : Verify.Pos) (l label : String) (obj : String → Verify.Object) :
+    let db_after_const_check := match obj l with
+      | .const _ =>
+        if !db.permissive && db.scopes.size > 0 then
+          db.mkError pos s!"$c must be in outermost block (spec Section 4.2.8)"
+        else db
+      | _ => db
+    db_after_const_check.find? label = db.find? label := by
+  simp only [Verify.DB.find?]
+  exact congrArg (·[label]?) (DB.insert_const_check_preserves_objects db pos l obj)
+
+/-- DB.find? after insert (no error case) - proven using the equation lemma
+`Verify.DB.insert_find?_self` from Verify.lean. -/
 theorem DB.find?_after_insert_no_error
     (db : Verify.DB) (pos : Verify.Pos) (label : String) (obj : String → Verify.Object) :
     db.error = false →
     db.find? label = none →
-    let db' := db.insert pos label obj
-    db'.error = false →
-    db'.find? label = some (obj label) := by
+    (db.insert pos label obj).error = false →
+    (db.insert pos label obj).find? label = some (obj label) := by
   intro h_no_err h_not_found h_no_err'
-  -- DB.insert has complex control flow, need detailed analysis
-  sorry -- TODO: Analyze DB.insert implementation
+  exact Verify.DB.insert_find?_self db pos label obj h_no_err h_not_found h_no_err'
 
 /-! ## Tactic Helpers for Sonnet
 
@@ -236,12 +343,33 @@ theorem checkHyp_preserves_keys
       intro i σ_in σ_out h_unique h_keys_from_before_i h_in h_ok h_fuel
       have hi_lt : i < hyps.size := by omega
       cases h_find : db.find? hyps[i] with
-      | none => sorry -- WF
+      | none =>
+        -- WF: checkHyp reaches unreachable! when db.find? = none
+        -- Contradiction: unreachable! cannot equal Except.ok
+        unfold Verify.DB.checkHyp at h_ok
+        simp only [hi_lt, dif_pos] at h_ok
+        rw [h_find] at h_ok
+        simp at h_ok
       | some obj =>
         cases obj with
-        | const _ => sorry -- WF
-        | var _ => sorry -- WF
-        | assert _ _ _ => sorry -- WF
+        | const _ =>
+          -- WF: checkHyp reaches unreachable! for const objects
+          unfold Verify.DB.checkHyp at h_ok
+          simp only [hi_lt, dif_pos] at h_ok
+          rw [h_find] at h_ok
+          simp at h_ok
+        | var _ =>
+          -- WF: checkHyp reaches unreachable! for var objects
+          unfold Verify.DB.checkHyp at h_ok
+          simp only [hi_lt, dif_pos] at h_ok
+          rw [h_find] at h_ok
+          simp at h_ok
+        | assert _ _ _ =>
+          -- WF: checkHyp reaches unreachable! for assert objects
+          unfold Verify.DB.checkHyp at h_ok
+          simp only [hi_lt, dif_pos] at h_ok
+          rw [h_find] at h_ok
+          simp at h_ok
         | hyp ess f lbl =>
           cases ess
           · -- Float: recurses with σ_in.insert k' v'
@@ -396,6 +524,19 @@ theorem checkHyp_insert_persists
   -- Apply checkHyp_preserves_keys!
   exact checkHyp_preserves_keys h_success h_unique h_keys_from_before_i h_in h_ok
 
+/-- Helper: substStep preserves equality when HashMap lookups agree -/
+theorem Formula.substStep_preserved
+    {σ_in σ_out : Std.HashMap String Verify.Formula}
+    (h_preserve : ∀ (v : String), (σ_in[v]? : Option Verify.Formula) = σ_out[v]?)
+    (acc : Verify.Formula) (s : Verify.Sym) :
+    Verify.Formula.substStep σ_in acc s = Verify.Formula.substStep σ_out acc s := by
+  unfold Verify.Formula.substStep
+  cases s with
+  | const c => rfl
+  | var v =>
+    simp only
+    rw [h_preserve v]
+
 /-- **Corollary**: Formula.subst is preserved if the HashMap is preserved.
 
 Since Formula.subst only reads from the HashMap, if all variables in f
@@ -404,6 +545,12 @@ theorem subst_preserved_by_keys
     {f : Verify.Formula} {σ_in σ_out : Std.HashMap String Verify.Formula}
     (h_preserve : ∀ (v : String), (σ_in[v]? : Option Verify.Formula) = σ_out[v]?) :
     f.subst σ_in = f.subst σ_out := by
-  sorry -- TODO: Prove by induction on f structure
+  unfold Verify.Formula.subst
+  -- f.foldlM (substStep σ_in) #[] = f.foldlM (substStep σ_out) #[]
+  -- Since substStep is equal for all inputs (by substStep_preserved),
+  -- the foldlM results should be equal
+  congr 1
+  funext acc s
+  exact Formula.substStep_preserved h_preserve acc s
 
 end Metamath.HashMapLemmas
