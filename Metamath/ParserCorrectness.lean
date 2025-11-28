@@ -421,11 +421,15 @@ theorem insertHyp_preserves_error (db : DB) (pos : Pos) (label : String) (ess : 
         sorry -- For loop reasoning - but conceptually clear
       · -- Not doing float check, just return db
         exact h
-    -- After insert_preserves_error, apply withHyps_preserves_error
-    sorry -- TODO: Chain insert and withHyps preservation
+    -- TODO: Chain insert_preserves_error and withHyps_preserves_error
+    -- Challenge: Lean's elaboration of Id.run do-notation creates type mismatches
+    -- The preservation theorems work on DB → DB, but elaborated goal has monadic structure
+    -- Needs custom lemma about preservation through let bindings or different proof strategy
+    sorry
   · -- Skip float check, go straight to insert
-    -- Direct application of preservation lemmas
-    sorry -- TODO: Chain insert and withHyps preservation
+    -- TODO: Direct chaining of insert_preserves_error and withHyps_preserves_error
+    -- Same elaboration challenges as the first branch
+    sorry
 
 /-- insertAxiom preserves error state -/
 theorem insertAxiom_preserves_error (db : DB) (pos : Pos) (label : String) (fmla : Formula) :

@@ -1,11 +1,43 @@
 # Session Status: Sorry Elimination Progress (Continued)
 
-**Date**: 2025-11-28 (Session 2)
+**Date**: 2025-11-28 (Session 3)
 **Branch**: `claude/lean-4.24-batteries-01DQc2gXMAog3Q2TSE8sU2kv`
 **Lean Version**: 4.24.0
 **Batteries Version**: 4.24.0
 
-## 🆕 Session 2 Progress
+## 🆕 Session 3 Progress (Current)
+
+### Infrastructure Built: Proof Toolkit
+✅ **PROOF_TOOLKIT.md created** - Cataloged 20+ proven theorems for reuse
+- Error preservation theorems (7): `withFrame`, `mkError`, `insert`, `pushScope`, `popScope`, `withDJ`, `withHyps`
+- Insert properties (2): `insert_no_dup_objects`, `insert_find?_self`
+- Frame & objects properties (6): Frame preservation, object updates, error short-circuit
+- DBLemmas (4 newly proven from Session 2)
+- Common proof patterns (4 documented)
+
+### Delegation Attempt: `insertHyp_preserves_error`
+❌ **Lines 424-432 in ParserCorrectness.lean** - More complex than expected
+- **Issue discovered**: Lean's elaboration of `Id.run do...` creates monadic structure incompatible with preservation theorem types
+- **Root cause**: Preservation theorems have type `DB → DB`, but elaborated goals have nested `let`, `forIn`, and monadic bind constructs
+- **Attempted solutions** (all failed):
+  1. `apply` chain → Type mismatch between elaborated forms
+  2. `simp [preservation_theorem]` → Implications don't work as simp rules
+  3. `unfold` + `simp` → Elaborated form doesn't match hypothesis
+  4. Explicit `show` statements → Can't write `let mut` outside do-notation
+  5. Explicit `have` intermediate steps → Still type mismatch in monadic structure
+
+### Documentation
+✅ **Challenge documented in PROOF_TOOLKIT.md**
+- Added "Known Challenges" section
+- Documented monadic elaboration issue
+- Listed 4 potential solution strategies
+
+### Key Learning
+**Delegation pattern has limits**: Not all conceptually simple proofs (like chaining preservation lemmas) are syntactically simple in Lean when monadic code is involved. Custom infrastructure lemmas needed for monadic preservation.
+
+---
+
+## Session 2 Progress
 
 ### Sorries Eliminated: 5
 1. **ParserCorrectness.lean** (1 sorry)
