@@ -568,36 +568,34 @@ The insert operation is the foundation of database construction.
 Key property: after inserting, we can find what we inserted.
 -/
 
-/-- After successful insert (no error), object is findable -/
+/-- After successful insert (no error), object is findable.
+   This is proven in Verify.lean:336 as DB.insert_find?_self. -/
 theorem insert_findable (db : DB) (pos : Pos) (label : String) (obj : String → Object) :
   db.error = false →
   db.find? label = none →
-  (db.insert pos label obj).find? label = some (obj label) := by
-  intro h_no_err h_not_found
-  -- DB.insert has complex structure with multiple if-then-else
-  -- Key insight: if db.error = false and label not found,
-  -- we reach the HashMap.insert line (line 294 in Verify.lean)
-  -- Then use HashMap.find?_insert_eq
-  sorry -- TODO: Needs careful case analysis on DB.insert structure
+  (db.insert pos label obj).error = false →
+  (db.insert pos label obj).find? label = some (obj label) :=
+  DB.insert_find?_self db pos label obj
 
-/-- Insert preserves other objects (if no collision) -/
+/-- Insert preserves other objects (if no collision).
+   TODO: Needs HashMap lemma about insert at different keys not affecting lookup.
+   Proof strategy: Use DB.insert_no_dup_objects + HashMap property. -/
 theorem insert_preserves_others (db : DB) (pos : Pos) (label label' : String) (obj : String → Object) :
   label ≠ label' →
   db.error = false →
   db.find? label = none →
   (db.insert pos label obj).find? label' = db.find? label' := by
   intro h_ne h_no_err h_not_found
-  unfold DB.insert
   sorry
 
-/-- Duplicate insert creates error -/
+/-- Duplicate insert creates error.
+   TODO: Need to handle const check + var-var special case.
+   Proof strategy: Unfold DB.insert, case split on obj and existing types. -/
 theorem insert_duplicate_error (db : DB) (pos : Pos) (label : String) (obj : String → Object) (existing : Object) :
   db.error = false →
   db.find? label = some existing →
   (db.insert pos label obj).error = true := by
   intro h_no_err h_exists
-  unfold DB.insert
-  -- The insert operation checks for duplicates and calls mkError
   sorry
 
 /-! ## Layer 4: Well-formedness Preservation via Induction
