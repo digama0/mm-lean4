@@ -1,5 +1,6 @@
 import Std.Data.HashMap
 import Std.Data.HashSet
+import Std.Data.ByteSlice
 
 
 def UInt8.toChar (n : UInt8) : Char := ⟨n.toUInt32, by
@@ -28,6 +29,7 @@ end UInt8
 structure ByteSliceT where
   arr : ByteArray
   off : Nat
+  le_size : off ≤ arr.size
 
 namespace ByteSliceT
 
@@ -38,20 +40,15 @@ instance : GetElem ByteSliceT Nat UInt8 fun _ _ => True where
 
 end ByteSliceT
 
-def ByteArray.toSliceT (arr : ByteArray) : ByteSliceT := ⟨arr, 0⟩
+@[inline] def ByteArray.toByteSliceCore (as : ByteArray) (start : Nat) (stop : Nat)
+    (h₁ : start ≤ stop) (h₂ : stop ≤ as.size) : ByteSlice := by
+  let P (_ : ByteSlice) := True
+  have : P (as.toByteSlice start stop) := trivial
+  clear_value P
+  simp [ByteArray.toByteSlice, h₁, h₂] at this
+  exact let y := _; have : P y := this; y
 
-structure ByteSlice where
-  arr : ByteArray
-  off : Nat
-  len : Nat
-
-namespace ByteSlice
-
-def toArray : ByteSlice → ByteArray
-  | ⟨arr, off, len⟩ => arr.extract off len
-
-instance : GetElem ByteSlice Nat UInt8 fun _ _ => True where
-  getElem self idx _ := self.arr[self.off + idx]!
+def ByteArray.toSliceT (arr : ByteArray) : ByteSliceT := ⟨arr, 0, Nat.zero_le _⟩
 
 def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
     (arr : ByteArray) (off stop : Nat) (i : Nat) (b : β) : m β := do
@@ -62,30 +59,28 @@ def forIn.loop [Monad m] (f : UInt8 → β → m (ForInStep β))
   else pure b
 
 instance : ForIn m ByteSlice UInt8 :=
-  ⟨fun ⟨arr, off, len⟩ b f => forIn.loop f arr off (off + len) off b⟩
+  ⟨fun bs init f => forIn.loop f bs.byteArray bs.start bs.stop bs.start init⟩
 
-end ByteSlice
-
-def ByteSliceT.toSlice : ByteSliceT → ByteSlice
-  | ⟨arr, off⟩ => ⟨arr, off, arr.size - off⟩
-
-def ByteArray.toSlice (arr : ByteArray) : ByteSlice := ⟨arr, 0, arr.size⟩
+@[inline] def ByteSliceT.toSlice : ByteSliceT → ByteSlice
+  | ⟨arr, off, h⟩ => ByteArray.toByteSliceCore arr off _ h (Nat.le_refl _)
 
 def ByteSlice.eqArray (bs : ByteSlice) (arr : ByteArray) : Bool :=
-  let rec loop (arr₁ : ByteArray) (i j : Nat) : Bool :=
-    if j < arr.size then
-      arr₁[i]! == arr[j]! && loop arr₁ (i+1) (j+1)
-    else true
-  bs.len == arr.size && loop bs.arr bs.off 0
+  if _ : bs.size = arr.size then
+    let rec go (i : Nat) : Bool :=
+      if _ : i < bs.size then
+        bs[i] = arr[i] && go (i + 1)
+      else true
+    go 0
+  else false
 
-def String.toAscii (s : String) : ByteArray :=
-  let rec loop (out : ByteArray) (p : Pos) : ByteArray :=
-    if h : s.atEnd p then out else
-      let c := s.get p
-      have := Nat.sub_lt_sub_left (Nat.gt_of_not_le (mt decide_eq_true h)) (lt_next s _)
-      loop (out.push c.toUInt8) (s.next p)
-  termination_by s.endPos.1 - p.1
-  loop ByteArray.empty 0
+def String.toAscii (s : String) : ByteArray := loop ByteArray.empty 0 where
+  loop (out : ByteArray) (p : Pos.Raw) : ByteArray :=
+    if h : Pos.Raw.atEnd s p then out else
+      let c := Pos.Raw.get s p
+      have := Nat.sub_lt_sub_left (Nat.gt_of_not_le (mt decide_eq_true h))
+        (String.Pos.Raw.byteIdx_lt_byteIdx_next s _)
+      loop (out.push c.toUInt8) (Pos.Raw.next s p)
+  termination_by s.rawEndPos.1 - p.1
 
 def ByteSlice.toString (bs : ByteSlice) : String := Id.run do
   let mut s := ""
@@ -620,14 +615,16 @@ def feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) : ParserState :=
     match p with
     | .comment _ => unreachable!
     | .start =>
-      if tk.len == 2 && tk[0] == '$'.toUInt8 then
-        match tk[1].toChar with
-        | '{' => s.withDB .pushScope
-        | '}' => s.withDB (.popScope pos)
-        | 'c' => { s with tokp := .const }
-        | 'v' => { s with tokp := .var }
-        | 'd' => { s with tokp := .djvars #[] }
-        | _ => s.label pos tk
+      if _ : tk.size = 2 then
+        if tk[0] == '$'.toUInt8 then
+          match tk[1].toChar with
+          | '{' => s.withDB .pushScope
+          | '}' => s.withDB (.popScope pos)
+          | 'c' => { s with tokp := .const }
+          | 'v' => { s with tokp := .var }
+          | 'd' => { s with tokp := .djvars #[] }
+          | _ => s.label pos tk
+        else s.label pos tk
       else s.label pos tk
     | .const => s.sym pos tk .const
     | .var => s.sym pos tk .var
@@ -653,68 +650,83 @@ def feedToken (s : ParserState) (pos : Nat) (tk : ByteSlice) : ParserState :=
           | _ => return s.mkError pos s!"{tk} is not a constant or variable"
           { s with tokp := .math (arr.push tk) p }
     | .label pos lab =>
-      if tk.len == 2 && tk[0] == '$'.toUInt8 then
+      if _ : tk.size = 2 then
         let go (s : ParserState) (k : TokensKind) :=
           { s with tokp := .math #[] ⟨k, pos, lab⟩ }
-        match tk[1].toChar with
-        | 'f' => go s .float
-        | 'e' => go s .ess
-        | 'a' => go s .ax
-        | 'p' => go s .thm
-        | _ => s.mkError pos s!"unknown statement type {(toLabel tk).2}"
+        if tk[0] == '$'.toUInt8 then
+          match tk[1].toChar with
+          | 'f' => go s .float
+          | 'e' => go s .ess
+          | 'a' => go s .ax
+          | 'p' => go s .thm
+          | _ => s.mkError pos s!"unknown statement type {(toLabel tk).2}"
+        else s.mkError pos s!"unknown statement type {(toLabel tk).2}"
       else s.mkError pos s!"unknown statement type {(toLabel tk).2}"
     | .proof pr =>
       let s := { s with tokp := default }
       if tk.eqArray "$.".toAscii then s.finishProof pr
       else s.feedProof tk pr
 
-inductive OldToken
-  | this (off : Nat)
-  | old (base off : Nat) (arr : ByteArray)
+inductive OldToken (arr : ByteArray)
+  | this (off : Nat) (h : off ≤ arr.size)
+  | old (base off : Nat) (arr : ByteArray) (h : off ≤ arr.size)
 
-inductive FeedState
-  | ws : FeedState
-  | token : OldToken → FeedState
+inductive FeedState (arr : ByteArray)
+  | ws : FeedState arr
+  | token : OldToken arr → FeedState arr
+
+def FeedState.below (i : Nat) : FeedState arr → Prop
+  | .ws => True
+  | .token (.this off _) => off < i
+  | .token (.old ..) => True
+
+theorem FeedState.below.mono : ∀ {rs : FeedState arr}, FeedState.below i rs → FeedState.below (i + 1) rs
+  | .ws, _ => trivial
+  | .token (.this ..), h => Nat.lt_succ_of_lt h
+  | .token (.old ..), _ => trivial
 
 def updateLine (s : ParserState) (i : Nat) (c : UInt8) : ParserState :=
   if c == '\n'.toUInt8 then { s with line := s.line + 1, linepos := i + 1 } else s
 
 def feed (base : Nat) (arr : ByteArray)
-    (i : Nat) (rs : FeedState) (s : ParserState) : ParserState :=
+    (i : Nat) (rs : {rs : FeedState arr // rs.below i}) (s : ParserState) : ParserState :=
   if h : i < arr.size then
     let c := arr[i]
     if isWhitespace c then
       match rs with
-      | .ws =>
+      | ⟨.ws, _⟩ =>
         let s := s.updateLine (base + i) c
-        feed base arr (i+1) .ws s
-      | .token ot =>
+        feed base arr (i+1) ⟨.ws, ⟨⟩⟩ s
+      | ⟨.token ot, h⟩ =>
         let s := match ot with
-        | .this off => s.feedToken (base + off) ⟨arr, off, i - off⟩
-        | .old base off arr' => s.feedToken (base + off)
-          ⟨arr.copySlice 0 arr' arr'.size i false, off, arr'.size - off + i⟩
+        | .this off _ =>
+          s.feedToken (base + off) (arr.toByteSliceCore off i (Nat.le_of_lt h) (by omega))
+        | .old base off arr' h => s.feedToken (base + off)
+          ((arr.copySlice 0 arr' arr'.size i false).toByteSliceCore off _
+            (by simp [ByteArray.copySlice_eq_append]; omega) (Nat.le_refl _))
         let s : ParserState := s.updateLine (base + i) c
         if let some ⟨e, _⟩ := s.db.error? then
           { s with db := { s.db with error? := some ⟨e, i+1⟩ } }
-        else feed base arr (i+1) .ws s
+        else feed base arr (i+1) ⟨.ws, ⟨⟩⟩ s
     else
-      let rs := if let .ws := rs then .token (.this i) else rs
+      let rs := if let ⟨.ws, _⟩ := rs then
+        ⟨.token (.this i (by omega)), Nat.lt_succ_self _⟩
+      else ⟨rs, rs.2.mono⟩
       feed base arr (i+1) rs s
   else
     { s with charp :=
       match rs with
-      | .ws => .ws
-      | .token ot =>
-        match ot with
-        | .this off => .token base ⟨arr, off⟩
-        | .old base off arr' => .token base ⟨arr' ++ arr, off⟩ }
+      | ⟨.ws, _⟩ => .ws
+      | ⟨.token (.this off h), h'⟩ => .token base ⟨arr, off, h⟩
+      | ⟨.token (.old base off arr' h), h'⟩ =>
+        .token base ⟨arr' ++ arr, off, by simp; omega⟩ }
 
 def feedAll (s : ParserState) (base : Nat) (arr : ByteArray) : ParserState :=
   match s.charp with
-  | .ws => s.feed base arr 0 .ws
-  | .token base' ⟨arr', off⟩ =>
+  | .ws => s.feed base arr 0 ⟨.ws, ⟨⟩⟩
+  | .token base' ⟨arr', off, h⟩ =>
     let s := { s with charp := default }
-    s.feed base arr 0 (.token (.old base' off arr'))
+    s.feed base arr 0 ⟨.token (.old base' off arr' h), ⟨⟩⟩
 
 def done (s : ParserState) (base : Nat) : DB := Id.run do
   let mut s := s
